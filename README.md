@@ -1,2 +1,6 @@
-# Shielded-RL
-synthesize shields to ensure safety constraints expressed in LTL
+"python -m venv venv"  
+"source venv/bin/activate"  
+"source set setLxSHPYTHONPATH"  
+"pip install -r requirements.txt"  
+"cd source"  
+"python experiment.py"
