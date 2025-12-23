@@ -19,36 +19,7 @@ class BaseAgent(ABC):
         self.RObs = RObs
         self.TObs = TObs
         self.BObs = BObs
-
-
-    # @property
-    # def max_velocity(self):
-    #     return self._max_velocity
-
-    @property
-    def position(self):
-        return self._position
-    
-    @position.setter
-    def position(self, new_position):
-        self._position = new_position
-    
-    @property
-    def velocity(self):
-        return self._velocity
-    
-    @velocity.setter
-    def velocity(self, new_velocity):
-        self._velocity = new_velocity
-    
-    @property
-    def is_live(self):
-        return self._is_live
-    
-    @is_live.setter
-    def is_live(self, new_value:bool):
-        self._is_live = new_value
-
+        
 
     '''clips to the workspace, in addition sets a flag if the workspace boundary was hit (needed for geofencing)'''
     def clipPosToWSBoundary(self, isreset=False):
