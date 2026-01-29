@@ -30,12 +30,13 @@ DEFAULT_CONFIG = {
     #'target_kl': 0.05,                   
 
     'max_episode_length': 100,
-    'max_learning_steps': int(500E3),     #total for trining run
+    'max_learning_steps': int(1000E3),     #total for trining run
     'buffer_size': int(30E3),             #rollout buffer size
-    'use_shield': True,
+    # moved -> env_config b/c env now needs it 'use_shield': False,
     'num_shield_chances': 100,
     'env_class': PredPreyEnv,
     'env_config': {        
+        'use_shield': False,
         'initial_prey_pos' : np.array([0, 10.0]),         #chg for 3-D, also Other option is 'random'
         'initial_prey_velocity': np.array([0.0, -0.5]),   #chg for 3-D, also Other option is 'random'
         #TBD: do we want to limit prey and pred speeds to account for terminal velcocities?
@@ -50,8 +51,8 @@ DEFAULT_CONFIG = {
         'max_acceleration':     10,                           
         'workspace_size':       10,
         'GEOFENCING' :          True,
-        'DOING_OBSTACLES':      True, 
-        'DOING_BOUNDED':        True, 
+        'DOING_OBSTACLES':      False, 
+        'DOING_BOUNDED':        False, 
         'STEPS_BOUND':          3,
         'LObs' :                LObs,
         'RObs' :                RObs,
