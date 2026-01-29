@@ -22,7 +22,7 @@ class PPOLearner(PPO):
                         target_kl=target_kl
                         #device=config['device']
         )
-        self.use_shield = config['use_shield']
+        self.use_shield = config['env_config']['use_shield']
         #policy member var gets initialized by the parent class (PPO) constructor..
         self.action_selector = ActionSelector(config, self.policy, self.env)
 
