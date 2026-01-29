@@ -101,10 +101,12 @@ class PredPreyEnv(Env):
                 start = pred_num * self.num_dims
                 end = (pred_num + 1) * self.num_dims
                 #slice into the positions array to get the pos for this pred
+                #TBD: this all needs to go in a Preadtor reset method
                 predator.position = positions[start:end]
                 predator.velocity = np.zeros(self.num_dims)
                 predator.hit_geofence = False
                 predator.is_live = True
+                predator.shield_was_used_in_step = False
 
             # check it didnt place preds on top of each other or outside WS
             collisions = self.findAndKillCollidedPreds()
@@ -170,7 +172,8 @@ class PredPreyEnv(Env):
         if task_failed:
             # breakpoint()
             self.n_hit_geofence_or_obs += 1
-            if self.n_hit_geofence_or_obs % 100 == 0: print('# times hit geofence or obs', self.n_hit_geofence_or_obs)
+            if self.n_hit_geofence_or_obs % 100 == 0: 
+                print('# times hit geofence or obs', self.n_hit_geofence_or_obs)
 
         pred_posz = np.concatenate([predator.position for predator in self.predators])
         pred_velocities = np.concatenate([predator.velocity for predator in self.predators])
@@ -227,6 +230,10 @@ class PredPreyEnv(Env):
 
 
     def getReward(self, done):
+        shield_used = False
+        if self.use_shield:
+            shield_used = self.predators[0].shield_was_used_in_step if hasattr(self.predators[0], 'shield_was_used_in_step') else False
+
         if done:
             if self.aPredCaughtPrey():
                 reward = 1
@@ -243,9 +250,18 @@ class PredPreyEnv(Env):
                     # normalized_distance = distance / max_distance
                     # prey_pos = self.prey.position
                     normalized_distance = self.predators[0].normalizedDistanceTo(prey_pos)
-                    reward = -normalized_distance  # Negative reward proportional to normalized distance       
+                    reward = -normalized_distance  # Negative reward proportional to normalized distance
         else: #episode not finished, no biscuit for you yet. *TBD?: small reward for surviving or getting close to prey?
-            reward = 0
+            # reward = 0 # does slightly better?
+            # # Small constant time penalty to encourage efficiency
+            reward = -0.01
+            # # Add a larger penalty if the shield had to intervene
+            # if shield_used:
+            #     reward -= 0.1
+
+        if self.use_shield and shield_used:
+            self.predators[0].shield_was_used_in_step = False
+
         return reward
 
 
