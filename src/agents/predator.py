@@ -6,3 +6,6 @@ class Predator(BaseAgent):
         super().__init__(num_dims, workspace_size=workspace_size, 
                          doing_obstacles=doing_obstacles, doing_geofence=doing_geofence,
                          LObs=LObs, RObs=RObs, TObs=TObs, BObs=BObs)
+        self.shield_was_used_in_step = False
+
+    # def reset(self):
