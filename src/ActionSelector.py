@@ -17,8 +17,8 @@ class ActionSelector:
         #not correct: it gives the class not the object: config['policy']
         self.policy = policy 
         self.num_chances = config['num_shield_chances']
-        if self.env.num_preds > 1:
-            raise NotImplementedError('Multiple predators not implemented')
+        # if self.env.num_preds > 1:
+        #     raise NotImplementedError('Multiple predators not implemented')
         self.config = config
         self.n_agent_fails = 0  #tracks # times agent failed to find ok action
 
@@ -56,7 +56,7 @@ class ActionSelector:
         #reshape b/c evaluat_actoins expects a batched tensor. if there were multiple envs m it would be an m element array
         action_per_pred_as_1_element_2D_array = th.tensor(action_per_pred.reshape(1, self.env.num_preds * self.env.num_dims)).to(self.policy.device)
 
-        #If it were to take this action in this state, what is its probability and what is the state's value?
+        #If it were to take this action in this state, what is its probability and what is the state's value? NB: its called evaluate_actions plural b/c the action choices are tpyically batched up and called within train() in SB3. We need to call it here b/c we sampled multiple actions and then selected one, so need to get the value and log prob for that one action.
         values, log_probs, _ = \
             self.policy.evaluate_actions(single_obs, 
                                          action_per_pred_as_1_element_2D_array
@@ -65,14 +65,18 @@ class ActionSelector:
     
 
     def getOKPolicyAction(self, replicated_obs, single_obs):
-        if self.config['use_shield']:
+        # if self.config['use_shield']:
+        if self.config['env_config']['use_shield']:
             """ 
                 - policy is repeatedly sampled as many times as the length of replicated_obs --> array num_chances long, but each array element is num_preds*num_dims array (eg [1.0,2.0,30, 0.1,0.2,0.3] for 2 preds in 3D) b/c each pred has its own policy (decentralized MARL). hence actionss!
                 - obs_as_tensor take the original dict of numpy arrays and replaces it with dict of tensors on the given device!
                 - values and log_probs are discarded here b/c they are computed again in caller. 
             """
             obs_tensor = obs_as_tensor(replicated_obs, self.policy.device)
+            #------- this is where it samples the policy -----------
+            #Normally, the values and log_probs returned here are directly used, however as we get a bunch of actions and then select one from that bunch, it is necessary to call evaluate_actions() in getPolicyAction above to get the actual values and log probs for the chosen action
             actionss, values, log_probs = self.policy(obs_tensor)
+            #-------------------------------------------------------
             actionss = actionss.cpu().numpy()
             chosen_action_index = self.selectOKAction(actionss, single_obs)
             return actionss, chosen_action_index
@@ -121,8 +125,11 @@ class ActionSelector:
                 )
             if res:
                 # if num>0 and res == True: print('accepted', agent_acceleration, current_state)
+                if num > 0:     #if num=0 then shield wasn't needed
+                    self.env.predators[0].shield_was_used_in_step = True
                 #this weird test for when OK returns the action action the agent should pick
                 if res != True and len(res)==self.env.num_dims: 
+                    self.env.predators[0].shield_was_used_in_step = True
                     # print('res acc', res)
                     res = self.acclerationToAction(res) #np.array(res)).tolist()
                     actions[0] = res
