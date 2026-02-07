@@ -73,9 +73,14 @@ class BaseAgent(ABC):
         distance = np.linalg.norm(self.position - pos)
         return distance < min_sep
 
-    def normalizedDistanceTo(self, pos):
+    def normalizedDistanceTo(self, pos, min_sep=0):
         distance = np.linalg.norm(self.position - pos)
-        max_distance = np.sqrt(self._workspace_size**2 * self.num_dims)
+        if distance < min_sep:  
+            distance = 0
+        # max_distance = np.sqrt(self._workspace_size**2 * self.num_dims)
+        assert self.num_dims == 2, "only handling 2D for now"  # only 2D for now
+        #its a rectangular workspace not square
+        max_distance = np.sqrt((2 * self._workspace_size)**2 + self._workspace_size**2)  
         normalized_distance = distance / max_distance
         return normalized_distance
     

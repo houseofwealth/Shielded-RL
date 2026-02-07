@@ -1,4 +1,4 @@
-#this isnt currently useable on my m/c becuse config needs env which needs Gym
+#See note below about KILL_RADIUS how its used here
 from z3       import *
 from config import DEFAULT_CONFIG
 # from ipdb import set_trace
@@ -11,8 +11,9 @@ print('workspace_size = ', ws)
 A_MAX = DEFAULT_CONFIG['env_config']['max_acceleration']
 A_MIN = -A_MAX
 print('acceleration bounds A_MAX =', A_MAX)
-TARGET_RADIUS = DEFAULT_CONFIG['env_config']['AT_TARGET_RADIUS']
-print('TARGET_RADIUS', TARGET_RADIUS)
+# TARGET_RADIUS = DEFAULT_CONFIG['env_config']['PRED_SIZE']
+KILL_RADIUS = DEFAULT_CONFIG['env_config']['KILL_RADIUS']
+print('KILL_RADIUS', KILL_RADIUS)
 
 L = -ws; R=ws; B=0; T=ws; C = -ws; F = ws
 # LObs = -8; RObs=8; BObs=5; TObs=15            #is 16x10
@@ -70,9 +71,10 @@ e,u = Ints('e u')
 
 # boundedReachabilityProp = And(x==R, y==T)
 # boundedReachabilityProp = And(x==prey_x, y==prey_y)  <-- to hit exactly
-# Z3 has no abs fn: boundedReachabilityProp = And(abs(x - prey_x) < TARGET_RADIUS, abs(y, prey_y) <= TARGET_RADIUS)
-boundedReachabilityProp = And(-TARGET_RADIUS <= x - prey_x, x - prey_x <= TARGET_RADIUS, 
-                              -TARGET_RADIUS <= y - prey_y, y - prey_y <= TARGET_RADIUS)
+# Z3 has no abs fn: boundedReachabilityProp = And(abs(x - prey_x) < KILL_RADIUS, abs(y, prey_y) <= KILL_RADIUS)
+#**NOTE: this is slightly diff from how KILL_RAIDUS used in the env, here its a square of side 2*KILL_RADIUS centered at prey, whereas there its a circle of radius KILL_RADIUS centered at prey. But for KILL_RADIUS=1, the square and circle are close enough that we can get away with this simpler encoding. A more exact encodeing would require nonlinear constraints which Z3 doesnt handle well.
+boundedReachabilityProp = And(-KILL_RADIUS <= x - prey_x, x - prey_x <= KILL_RADIUS, 
+                              -KILL_RADIUS <= y - prey_y, y - prey_y <= KILL_RADIUS)
 # Nodes
 singleton  = {'name'         : 'main',
               'globals'      : globals,
@@ -302,7 +304,7 @@ def OKBR(agent_action, curr_st, prey_st, bound):
   v_x, v_y = v_x_abs - prey_vx, v_y_abs - prey_vy  #use relative velocities
   
   at_tgt = x == prey_x and y == prey_y
-  if TARGET_RADIUS == 1:
+  if KILL_RADIUS == 1:
     one_step = fnAnd([y + v_y + 1/2*a_y - prey_y >= -1,
                       y + v_y + 1/2*a_y - prey_y <= 1,
                       x + v_x + 1/2*a_x - prey_x >= -1,
@@ -315,7 +317,7 @@ def OKBR(agent_action, curr_st, prey_st, bound):
                         2/3*x + 2*v_x + 5/3*a_x + -2/3*prey_x <= 14,
                         -1*y + -3*v_y + -5/2*a_y + prey_y <= 21,
                         -1*x + -3*v_x + -5/2*a_x + prey_x <= 21])
-  elif TARGET_RADIUS == 0:
+  elif KILL_RADIUS == 0:
     one_step = fnAnd([y + v_y + 1/2*a_y == prey_y,
                       x + v_x + 1/2*a_x == prey_x])
     two_steps = fnAnd([-1*x + -2*v_x + -3/2*a_x + prey_x <= 5,
@@ -327,7 +329,7 @@ def OKBR(agent_action, curr_st, prey_st, bound):
                         -1*y + -3*v_y + -5/2*a_y + prey_y <= 20,
                         -1*x + -3*v_x + -5/2*a_x + prey_x <= 20])
   else:
-    print('***ERROR: TARGET_RADIUS can currently only be 0 or 1')
+    print('***ERROR: KILL_RADIUS can currently only be 0 or 1')
   if bound > 1:
     res = fnOr([#bound==1 and (one_step or at_tgt),
                 bound==2 and two_steps,
@@ -400,9 +402,9 @@ def solnExistsGeoPy(curr_st):
           -1*x + -2*v_x <= 30])
 
 def solnExistsBRPy(curr_st, prey_st, bound):
-  if TARGET_RADIUS == 1: return solnExistsBR_TGT_RAD_1Py(curr_st, prey_st, bound)
+  if KILL_RADIUS == 1: return solnExistsBR_TGT_RAD_1Py(curr_st, prey_st, bound)
   else: 
-    assert TARGET_RADIUS < 1, "TARGET_RADIUS can no more than 1"
+    assert KILL_RADIUS < 1, "KILL_RADIUS can no more than 1"
     return solnExistsBR_TGT_RAD_0Py(curr_st, prey_st, bound)
 
 def solnExistsBR_TGT_RAD_0Py(curr_st, prey_st, bound):

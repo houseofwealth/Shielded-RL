@@ -16,7 +16,8 @@ class PPOLearner(PPO):
         # this instantiates env, policy, and other member vars from parent class OnPolicyAlgorithm
         super().__init__(
                         config['policy_class'],
-                        env = config['env_class'](config['env_config']),
+                        # just passing env_vonfig not enough as env needs access to hyperparams like gamma: env = config['env_class'](config['env_config']),
+                        env = config['env_class'](config),
                         tensorboard_log=tensorboard_log,
                         learning_rate=config['learning_rate'],
                         target_kl=target_kl
