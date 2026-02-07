@@ -6,7 +6,7 @@ from stable_baselines3.ppo.policies import MultiInputPolicy #MIP is alias for Mu
 import numpy as np
 
 # USE_PARALLEL = False
-AGENT_SIZE = 0.1
+AGENT_SIZE = 0
 print('AGENT_SIZE', AGENT_SIZE)
 STEP_SIZE = 1                                     
 """ 20% of worksapce size"""
@@ -24,9 +24,7 @@ DEFAULT_CONFIG = {
     # 'batch_size': was this higher? But im sticking with PPO default of 64
     'gamma': 0.99,                        #discount factor for future rewards
 
-    # 'ent_coef' currently defaul of 0, its entropy term in loss fun, the higher this is, The action distribution becomes flatter (more spread out ie less deterministic), meaning the agent is more likely to explore a wider range of actions.
-
-    #Controls the maximum divergence (KL divergence) between the old and new policies during training. It prevents the policy from changing too drastically in one update, ensuring stable learning
+    'ent_coef': 0.05, #was 0 then 0.1 (worsened) It prevents the policy from changing too drastically in one update, ensuring stable learning
     #'target_kl': 0.05,                   
 
     'max_episode_length': 100,
@@ -44,14 +42,15 @@ DEFAULT_CONFIG = {
         'base_position':        np.array([0.0, 0.0]),
         'num_preds':            1,
         'num_dims':             2,
-        'AT_TARGET_RADIUS':     0, # 0.1 for shield, 1 for no shield
-        'MAX_EPISODE_STEPS':    20,
-        'MAX_ACCEPTABLE_RADIUS':AGENT_SIZE,
+        'PRED_SIZE':            AGENT_SIZE, # 0.1 for shield, 1 for no shield
+        'PREY_SIZE':            0.1, #<-- why not make this AGENT_SIZE as well?
+        'KILL_RADIUS':          1.0,
         'STEP_SIZE':            STEP_SIZE,
+        'MAX_EPISODE_STEPS':    20,
         'max_acceleration':     10,                           
         'workspace_size':       10,
-        'GEOFENCING' :          True,
-        'DOING_OBSTACLES':      False, 
+        'GEOFENCING' :          False,
+        'DOING_OBSTACLES':      True, 
         'DOING_BOUNDED':        False, 
         'STEPS_BOUND':          3,
         'LObs' :                LObs,

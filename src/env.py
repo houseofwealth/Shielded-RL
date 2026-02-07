@@ -9,9 +9,10 @@ class PredPreyEnv(Env):
     def __init__(self, config):
 
         assert isinstance(config, dict), 'Config should be a dict!'
-
+        env_config = config['env_config']
+        assert isinstance(env_config, dict), 'env_config in config should be a dict!'
         # Load config into a member dict - this allows entries in the config to be accessed as if they were fields of env. any changes to these dict entries doesnt impact config (as expected)
-        for key, value in config.items():
+        for key, value in env_config.items():
             self.__dict__[key] = value
 
         self.predators = []
@@ -33,6 +34,8 @@ class PredPreyEnv(Env):
         self.n_bound_exceeded = 0
         self.n_truncated = 0
         self.n_p_e = 0
+        self.prev_potential = 0.0
+        self.gamma = config['gamma']
 
     def mkSpaces(self):
         total_num_preds = self.num_preds #+ self.num_fake_preds
@@ -51,12 +54,33 @@ class PredPreyEnv(Env):
         self.target_pos_space = spaces.Box(
             -self.workspace_size , self.workspace_size , shape=(self.num_dims,)
         )
-        
-        self.observation_space = spaces.Dict({
+
+        obs_spaces = {
             'agent_velocities': self.agent_velocities_space,
             'pred_posz': self.pred_posz_space,
             'target_pos': self.target_pos_space,
-        })
+            # 'dist_to_walls': self.dist_to_walls_space,
+        }
+        
+        # Add "radar", ie distance to walls for each predator
+        # For 2D, this is 4 values per predator (dist to left, right, bottom, top walls)
+        # Note: currently only used for unshielded agent
+        if not self.use_shield and self.GEOFENCING:
+            self.dist_to_walls_space = spaces.Box(
+                0, 2 * self.workspace_size, shape=(self.num_preds * self.num_dims * 2,)
+        )
+            obs_spaces['dist_to_walls'] = self.dist_to_walls_space
+
+        # Add distance to obstacle faces for each predator (same pattern as dist_to_walls)
+        # For 2D: 4 values per predator (dist to LObs, RObs, BObs, TObs)
+        if not self.use_shield and self.DOING_OBSTACLES:
+            self.dist_to_obs_space = spaces.Box(
+                -2 * self.workspace_size, 2 * self.workspace_size, 
+                shape=(self.num_preds * self.num_dims * 2,)
+            )
+            obs_spaces['dist_to_obs'] = self.dist_to_obs_space
+
+        self.observation_space = spaces.Dict(obs_spaces)
 
     '''called at the start of each episode to reset env state'''
     def reset(self, options=None, seed=0):
@@ -94,8 +118,8 @@ class PredPreyEnv(Env):
 
 
     def initPredPoszAndVels(self):
-        preds_collided = True; pred_landed_outside_ws = True
-        while preds_collided or pred_landed_outside_ws:
+        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
+        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs:
             positions = self.pred_posz_space.sample()  # produces for say a 2 pred 3d space a 6 element vector [-2, 8, -1, 4, -3, 10]
             for pred_num, predator in enumerate(self.predators):
                 start = pred_num * self.num_dims
@@ -108,12 +132,14 @@ class PredPreyEnv(Env):
                 predator.is_live = True
                 predator.shield_was_used_in_step = False
 
-            # check it didnt place preds on top of each other or outside WS
+            # check it didnt place preds on top of each other or outside WS or inside obstacle
             collisions = self.findAndKillCollidedPreds()
             if not np.any(collisions):
                 preds_collided = False
             if not any(predator.landedOutsideWS() for predator in self.predators):
                 pred_landed_outside_ws = False
+            if not any(predator.hitObs() for predator in self.predators):
+                pred_landed_in_obs = False
       
 
     def step(self, action):
@@ -143,10 +169,10 @@ class PredPreyEnv(Env):
             task_failed = task_failed or bound_exceeded
         
         truncated = self.num_episode_steps >= self.MAX_EPISODE_STEPS
-        prey_escaped = self.prey.at(self.base_position, self.MAX_ACCEPTABLE_RADIUS)
+        prey_escaped = self.prey.at(self.base_position, self.PREY_SIZE)
         if prey_escaped: 
             self.n_p_e += 1
-            if self.n_p_e%10 == 0: print('n_prey_escaped', self.n_p_e)
+            if self.n_p_e%100 == 0: print('n_prey_escaped', self.n_p_e)
         if truncated: 
             self.n_truncated += 1
             # [seems to be same as n_prey_escaped] if self.n_truncated%10 == 0: print('n_truncated', self.n_truncated)
@@ -179,13 +205,69 @@ class PredPreyEnv(Env):
         pred_velocities = np.concatenate([predator.velocity for predator in self.predators])
         agent_vels = np.concatenate([pred_velocities, self.prey.velocity])
 
+        # # Calculate distance to walls for each predator
+        # dist_to_walls = []
+        # for predator in self.predators:
+        #     pos = predator.position
+        #     # Assumes workspace is centered at 0, from -workspace_size to +workspace_size
+        #     # Order: dist to +x, -x, +y, -y, ... for each dimension
+        #     for dim in range(self.num_dims):
+        #         dist_to_walls.append(self.workspace_size - pos[dim])
+        #         dist_to_walls.append(pos[dim] - (-self.workspace_size))
+        
         obs = { 'agent_velocities': agent_vels,
                 'pred_posz': pred_posz,
                 'target_pos': self.prey.position,
+                # 'dist_to_walls': np.array(dist_to_walls),
         }
+
+        #these two provide the unsheided agent with "radar" to sense where the feofence and obstacles are.
+        if not self.use_shield and self.DOING_OBSTACLES:
+            obs['dist_to_obs'] = np.concatenate([self.mkDistToObstacleObs(p) for p in self.predators])
+        if not self.use_shield and self.GEOFENCING:
+            obs['dist_to_walls'] = np.concatenate([self.mkDistToWallsObs(p) for p in self.predators])  
+        # Distance to obstacle faces for each predator (same pattern as dist_to_walls)
+        # Positive = outside obstacle on that side, negative = inside/past that face
+        # In 2D: dist to LObs (from left), RObs (from right), BObs (from below), TObs (from above)
+        # if self.DOING_OBSTACLES:
+        #     dist_to_obs = []
+        #     obs_bounds = [self.LObs, self.RObs, self.BObs, self.TObs]  # [x_lo, x_hi, y_lo, y_hi]
+        #     for predator in self.predators:
+        #         pos = predator.position
+        #         # x dimension: distance to left and right faces of obstacle
+        #         dist_to_obs.append(self.LObs - pos[0])   # negative if pred is left of obstacle (safe side)
+        #         dist_to_obs.append(pos[0] - self.RObs)   # negative if pred is right of obstacle (safe side)
+        #         # y dimension: distance to bottom and top faces of obstacle
+        #         dist_to_obs.append(self.BObs - pos[1])   # negative if pred is below obstacle (safe side)
+        #         dist_to_obs.append(pos[1] - self.TObs)   # negative if pred is above obstacle (safe side)
+        #     obs['dist_to_obs'] = np.array(dist_to_obs, dtype=np.float32)
+
         return obs, task_failed
     
-            
+    def mkDistToWallsObs(self, predator):
+        pos = predator.position
+        dist_to_walls = []
+        # Assumes workspace is centered at 0, from -workspace_size to +workspace_size
+        # Order: dist to +x, -x, +y, -y, ... for each dimension
+        for dim in range(self.num_dims):
+            dist_to_walls.append(self.workspace_size - pos[dim])  # distance to +ve wall
+            dist_to_walls.append(pos[dim] - (-self.workspace_size))  # distance to -ve wall
+        return np.array(dist_to_walls, dtype=np.float32)
+    
+    def mkDistToObstacleObs(self, predator):
+        # Distance to obstacle faces for each predator (same pattern as dist_to_walls)
+        # Positive = outside obstacle on that side, negative = inside/past that face
+        # In 2D: dist to LObs (from left), RObs (from right), BObs (from below), TObs (from above)
+        pos = predator.position
+        dist_to_obs = []
+        # x dimension: distance to left and right faces of obstacle
+        dist_to_obs.append(self.LObs - pos[0])   # negative if pred is left of obstacle (safe side)
+        dist_to_obs.append(pos[0] - self.RObs)   # negative if pred is right of obstacle (safe side)
+        # y dimension: distance to bottom and top faces of obstacle
+        dist_to_obs.append(self.BObs - pos[1])   # negative if pred is below obstacle (safe side)
+        dist_to_obs.append(pos[1] - self.TObs)   # negative if pred is above obstacle (safe side)
+        return np.array(dist_to_obs, dtype=np.float32)
+    
     '''check if any preds collided with each other and mark as dead'''
     def findAndKillCollidedPreds(self):
         #Not an automatic fail since other preds may still be alive
@@ -200,7 +282,7 @@ class PredPreyEnv(Env):
       live_preds = [pred for pred in self.predators if pred.is_live]
       for pred1_idx, pred1 in enumerate(live_preds):
           for pred2_relative_idx, pred2 in enumerate(live_preds[pred1_idx+1:]):
-              if np.linalg.norm(pred1.position - pred2.position) < self.AT_TARGET_RADIUS:
+              if np.linalg.norm(pred1.position - pred2.position) < self.PRED_SIZE:
                   who_collided[pred1_idx] = True
                   who_collided[pred1_idx + pred2_relative_idx  + 1] = True
       return who_collided
@@ -242,22 +324,31 @@ class PredPreyEnv(Env):
                 if self.predators[0].hitGeoFence() or self.predators[0].hitObs():  #hit_geofence would have been set in step() after clipping
                     reward = -1
                 else:
-                    # reward proportional to how close the predator got to the prey
-                    # predator_pos = self.predators[0].position  # Assuming single predator
-                    prey_pos = self.prey.position
-                    # distance = np.linalg.norm(predator_pos - prey_pos)
-                    # max_distance = np.sqrt(self.workspace_size**2 * self.num_dims)
-                    # normalized_distance = distance / max_distance
+                    reward = -1
+                    # # reward proportional to how close the predator got to the prey
+                    # # predator_pos = self.predators[0].position  # Assuming single predator
                     # prey_pos = self.prey.position
-                    normalized_distance = self.predators[0].normalizedDistanceTo(prey_pos)
-                    reward = -normalized_distance  # Negative reward proportional to normalized distance
+                    # normalized_distance = self.predators[0].normalizedDistanceTo(prey_pos)
+                    # # reward = -normalized_distance  # Negative reward proportional to normalized distance
         else: #episode not finished, no biscuit for you yet. *TBD?: small reward for surviving or getting close to prey?
-            # reward = 0 # does slightly better?
+            # 1. simplest: reward = 0 # does slightly better?
+            # 2. then tried:
             # # Small constant time penalty to encourage efficiency
-            reward = -0.01
+            # reward = -0.01
             # # Add a larger penalty if the shield had to intervene
             # if shield_used:
             #     reward -= 0.1
+            # 3.
+            if self.use_shield:
+                reward = 0
+            else:
+                #PBR scheme from Mn at al, 1999
+                prey_pos = self.prey.position
+                #this will be between 0 (its as far from prey as poss) and 1 (its at prey)
+                normalized_distance = self.predators[0].normalizedDistanceTo(prey_pos, min_sep=self.KILL_RADIUS)
+                potential = 1 - normalized_distance
+                reward = self.gamma * potential - self.prev_potential  # only potential increase gets +ve reward, to encourage getting closer to prey
+                self.prev_potential = potential
 
         if self.use_shield and shield_used:
             self.predators[0].shield_was_used_in_step = False
@@ -274,7 +365,7 @@ class PredPreyEnv(Env):
     def aPredCaughtPrey(self):
         for predator in self.predators:
             # if self.entityCollidedAt(predator, self.prey.position):
-            if predator.at(self.prey.position, self.MAX_ACCEPTABLE_RADIUS):
+            if predator.at(self.prey.position, self.KILL_RADIUS):
                 self.prey.is_live = False
                 self.n_prey_caught += 1
                 if self.n_prey_caught%100 == 0: print('n_prey_caught',self.n_prey_caught)
