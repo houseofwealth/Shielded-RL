@@ -3,9 +3,12 @@ import numpy as np
 from agents.predator import Predator
 from agents.prey import Prey
 
-'''Modeled loosly on MPE2 env in github'''
+'''Modeled loosly on MPE2 env in github. Private methods start with __ to indicate they should only be called within env. Public methods (__init__, reset, step) are called by SB3 training loop and actionToAcceleration is called by the ActionSelector in PPOLearner.'''
 
 class PredPreyEnv(Env):
+    # ------------------------------------------------------------------
+    # Public interface  (called by SB3 training loop)
+    # ------------------------------------------------------------------
     def __init__(self, config):
 
         assert isinstance(config, dict), 'Config should be a dict!'
@@ -25,7 +28,7 @@ class PredPreyEnv(Env):
 
         self.prey = Prey(num_dims=self.num_dims, workspace_size=self.workspace_size)
        
-        self.mkSpaces()             #action space and obs space
+        self.__mkSpaces()             #action space and obs space
         # self.reset()              #not needed, training loop in SB3 calls it before each episode
         self.hitGeoFenceOrObs = False
         self.n_hit_geofence_or_obs = 0
@@ -37,7 +40,124 @@ class PredPreyEnv(Env):
         self.prev_potential = 0.0
         self.gamma = config['gamma']
 
-    def mkSpaces(self):
+
+    '''called at the start of each episode to reset env state'''
+    def reset(self, options=None, seed=0):
+        self.__resetCountsAndFlags()
+        self.__initPreyPosAndVel()
+        self.__initPredPoszAndVels()
+
+        obs, _ = self.__getObservation()
+        # cant put this here b/c of cyclic dependency b/c shield <- model_1pt <- config <- env so set a flag instead    
+        # se = solnExistsPy(self.predators[0].position + self.predators[0].velocity, 
+        #                   self.prey.position + self.prey.velocity, 
+        #                   self.env.STEPS_BOUND)
+        
+        self.start_of_episode = True
+        return obs, {}               #SB3 expects these return values 
+      
+
+    def step(self, action):
+        # print('env_action', action)
+        # breakpoint()
+        self.num_episode_steps += 1
+        # self.num_steps_in_this_env += 1
+        acceleration = self.actionToAcceleration(action)
+
+        for pred_num, predator in enumerate(self.predators):
+            if predator.is_live:
+                start_idx = pred_num * self.num_dims
+                end_idx = (pred_num + 1) * self.num_dims
+                predator.move(acceleration[start_idx:end_idx], self.STEP_SIZE)
+                predator.clipPosToWSBoundary()    
+        
+        #prey has no acceleration!
+        self.prey.move(0, self.STEP_SIZE)   #prey moves w/ constant velocity
+        self.prey.clipPosToWSBoundary()
+
+        obs, task_failed = self.__getObservation()
+        if self.DOING_BOUNDED: 
+            bound_exceeded = self.n_steps_to_bound > (self.STEPS_BOUND - 1) #wy was this 2??
+            if bound_exceeded: 
+                self.n_bound_exceeded += 1
+                if self.n_bound_exceeded%100 == 0: print('n_bound_exceeded', self.n_bound_exceeded)
+            task_failed = task_failed or bound_exceeded
+        
+        truncated = self.num_episode_steps >= self.MAX_EPISODE_STEPS
+        prey_escaped = self.prey.at(self.base_position, self.PREY_SIZE)
+        if prey_escaped: 
+            self.n_p_e += 1
+            if self.n_p_e%100 == 0: print('n_prey_escaped', self.n_p_e)
+        if truncated: 
+            self.n_truncated += 1
+            # [seems to be same as n_prey_escaped] if self.n_truncated%10 == 0: print('n_truncated', self.n_truncated)
+
+        '''done just means end the episode here, task_failed if preds collided (w/ each other, geofence, bound exceeded, etc), it got truncated if it took too long'''
+        done =  task_failed or \
+                self.__aPredCaughtPrey() or \
+                truncated or \
+                prey_escaped
+            
+        # reward = self.getReward(obs['pred_posz'], obs['target_pos'], done)
+        reward = self.__getReward(done)
+        self.n_tot_rew += reward
+        self.n_steps_to_bound += 1
+        # SB3 wrapper on step() requires all these 5 things
+        return obs, reward, done, truncated, {'task_failed': task_failed}
+
+
+    def actionToAcceleration(self, action):
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        return action * self.max_acceleration
+
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+    def __resetCountsAndFlags(self):
+        self.num_episode_steps = 0
+        self.n_steps_to_bound = 0
+
+    def __initPreyPosAndVel(self):
+        self.prey.is_live = True
+        if isinstance(self.initial_prey_pos, str) and self.initial_prey_pos == 'random':
+            pos = self.target_pos_space.sample()
+            pos[-1] = 0  # Set last dimension to ground b/c workspace starts at ground
+            self.prey.position = pos
+        else:
+            self.prey.position = self.initial_prey_pos
+
+        if  isinstance(self.initial_prey_velocity, str) and self.initial_prey_velocity == 'random':
+            self.prey.velocity = self.agent_velocities_space.sample()
+        else:
+            self.prey.velocity = self.initial_prey_velocity
+
+
+    def __initPredPoszAndVels(self):
+        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
+        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs:
+            positions = self.pred_posz_space.sample()  # produces for say a 2 pred 3d space a 6 element vector [-2, 8, -1, 4, -3, 10]
+            for pred_num, predator in enumerate(self.predators):
+                start = pred_num * self.num_dims
+                end = (pred_num + 1) * self.num_dims
+                #slice into the positions array to get the pos for this pred
+                #TBD: this all needs to go in a Preadtor reset method
+                predator.position = positions[start:end]
+                predator.velocity = np.zeros(self.num_dims)
+                predator.hit_geofence = False
+                predator.is_live = True
+                predator.shield_was_used_in_step = False
+
+            # check it didnt place preds on top of each other or outside WS or inside obstacle
+            collisions = self.__findAndKillCollidedPreds()
+            if not np.any(collisions):
+                preds_collided = False
+            if not any(predator.landedOutsideWS() for predator in self.predators):
+                pred_landed_outside_ws = False
+            if not any(predator.hitObs() for predator in self.predators):
+                pred_landed_in_obs = False
+
+    def __mkSpaces(self):
         total_num_preds = self.num_preds #+ self.num_fake_preds
         self.action_space = spaces.Box(-1, 1, shape=(self.num_dims * self.num_preds,))
 
@@ -81,120 +201,12 @@ class PredPreyEnv(Env):
             obs_spaces['dist_to_obs'] = self.dist_to_obs_space
 
         self.observation_space = spaces.Dict(obs_spaces)
-
-    '''called at the start of each episode to reset env state'''
-    def reset(self, options=None, seed=0):
-        self.resetCountsAndFlags()
-        self.initPreyPosAndVel()
-        self.initPredPoszAndVels()
-
-        obs, _ = self.getObservation()
-        # cant put this here b/c of cyclic dependency b/c shield <- model_1pt <- config <- env so set a flag instead    
-        # se = solnExistsPy(self.predators[0].position + self.predators[0].velocity, 
-        #                   self.prey.position + self.prey.velocity, 
-        #                   self.env.STEPS_BOUND)
-        
-        self.start_of_episode = True
-        return obs, {}               #SB3 expects these return values 
-
-    def resetCountsAndFlags(self):
-        self.num_episode_steps = 0
-        self.n_steps_to_bound = 0
-
-
-    def initPreyPosAndVel(self):
-        self.prey.is_live = True
-        if isinstance(self.initial_prey_pos, str) and self.initial_prey_pos == 'random':
-            pos = self.target_pos_space.sample()
-            pos[-1] = 0  # Set last dimension to ground b/c workspace starts at ground
-            self.prey.position = pos
-        else:
-            self.prey.position = self.initial_prey_pos
-
-        if  isinstance(self.initial_prey_velocity, str) and self.initial_prey_velocity == 'random':
-            self.prey.velocity = self.agent_velocities_space.sample()
-        else:
-            self.prey.velocity = self.initial_prey_velocity
-
-
-    def initPredPoszAndVels(self):
-        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
-        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs:
-            positions = self.pred_posz_space.sample()  # produces for say a 2 pred 3d space a 6 element vector [-2, 8, -1, 4, -3, 10]
-            for pred_num, predator in enumerate(self.predators):
-                start = pred_num * self.num_dims
-                end = (pred_num + 1) * self.num_dims
-                #slice into the positions array to get the pos for this pred
-                #TBD: this all needs to go in a Preadtor reset method
-                predator.position = positions[start:end]
-                predator.velocity = np.zeros(self.num_dims)
-                predator.hit_geofence = False
-                predator.is_live = True
-                predator.shield_was_used_in_step = False
-
-            # check it didnt place preds on top of each other or outside WS or inside obstacle
-            collisions = self.findAndKillCollidedPreds()
-            if not np.any(collisions):
-                preds_collided = False
-            if not any(predator.landedOutsideWS() for predator in self.predators):
-                pred_landed_outside_ws = False
-            if not any(predator.hitObs() for predator in self.predators):
-                pred_landed_in_obs = False
-      
-
-    def step(self, action):
-        # print('env_action', action)
-        # breakpoint()
-        self.num_episode_steps += 1
-        # self.num_steps_in_this_env += 1
-        acceleration = self.actionToAcceleration(action)
-
-        for pred_num, predator in enumerate(self.predators):
-            if predator.is_live:
-                start_idx = pred_num * self.num_dims
-                end_idx = (pred_num + 1) * self.num_dims
-                predator.move(acceleration[start_idx:end_idx], self.STEP_SIZE)
-                predator.clipPosToWSBoundary()    
-        
-        #prey has no acceleration!
-        self.prey.move(0, self.STEP_SIZE)   #prey moves w/ constant velocity
-        self.prey.clipPosToWSBoundary()
-
-        obs, task_failed = self.getObservation()
-        if self.DOING_BOUNDED: 
-            bound_exceeded = self.n_steps_to_bound > (self.STEPS_BOUND - 1) #wy was this 2??
-            if bound_exceeded: 
-                self.n_bound_exceeded += 1
-                if self.n_bound_exceeded%100 == 0: print('n_bound_exceeded', self.n_bound_exceeded)
-            task_failed = task_failed or bound_exceeded
-        
-        truncated = self.num_episode_steps >= self.MAX_EPISODE_STEPS
-        prey_escaped = self.prey.at(self.base_position, self.PREY_SIZE)
-        if prey_escaped: 
-            self.n_p_e += 1
-            if self.n_p_e%100 == 0: print('n_prey_escaped', self.n_p_e)
-        if truncated: 
-            self.n_truncated += 1
-            # [seems to be same as n_prey_escaped] if self.n_truncated%10 == 0: print('n_truncated', self.n_truncated)
-
-        '''done just means end the episode here, task_failed if preds collided (w/ each other, geofence, bound exceeded, etc), it got truncated if it took too long'''
-        done =  task_failed or \
-                self.aPredCaughtPrey() or \
-                truncated or \
-                prey_escaped
-            
-        # reward = self.getReward(obs['pred_posz'], obs['target_pos'], done)
-        reward = self.getReward(done)
-        self.n_tot_rew += reward
-        self.n_steps_to_bound += 1
-        # SB3 wrapper on step() requires all these 5 things
-        return obs, reward, done, truncated, {'task_failed': task_failed}
     
 
     '''returns new system state and whether preds collided with each other, geofence, etc'''
-    def getObservation(self):
-        _ = self.findAndKillCollidedPreds()
-        task_failed = self.APredHitGeoFenceOrObs()
+    def __getObservation(self):
+        _ = self.__findAndKillCollidedPreds()
+        task_failed = self.__APredHitGeoFenceOrObs()
         if task_failed:
             # breakpoint()
             self.n_hit_geofence_or_obs += 1
@@ -223,9 +235,9 @@ class PredPreyEnv(Env):
 
         #these two provide the unsheided agent with "radar" to sense where the feofence and obstacles are.
         if not self.use_shield and self.DOING_OBSTACLES:
-            obs['dist_to_obs'] = np.concatenate([self.mkDistToObstacleObs(p) for p in self.predators])
+            obs['dist_to_obs'] = np.concatenate([self.__mkDistToObstacleObs(p) for p in self.predators])
         if not self.use_shield and self.GEOFENCING:
-            obs['dist_to_walls'] = np.concatenate([self.mkDistToWallsObs(p) for p in self.predators])  
+            obs['dist_to_walls'] = np.concatenate([self.__mkDistToWallsObs(p) for p in self.predators])  
         # Distance to obstacle faces for each predator (same pattern as dist_to_walls)
         # Positive = outside obstacle on that side, negative = inside/past that face
         # In 2D: dist to LObs (from left), RObs (from right), BObs (from below), TObs (from above)
@@ -244,7 +256,7 @@ class PredPreyEnv(Env):
 
         return obs, task_failed
     
-    def mkDistToWallsObs(self, predator):
+    def __mkDistToWallsObs(self, predator):
         pos = predator.position
         dist_to_walls = []
         # Assumes workspace is centered at 0, from -workspace_size to +workspace_size
@@ -254,7 +266,7 @@ class PredPreyEnv(Env):
             dist_to_walls.append(pos[dim] - (-self.workspace_size))  # distance to -ve wall
         return np.array(dist_to_walls, dtype=np.float32)
     
-    def mkDistToObstacleObs(self, predator):
+    def __mkDistToObstacleObs(self, predator):
         # Distance to obstacle faces for each predator (same pattern as dist_to_walls)
         # Positive = outside obstacle on that side, negative = inside/past that face
         # In 2D: dist to LObs (from left), RObs (from right), BObs (from below), TObs (from above)
@@ -269,15 +281,15 @@ class PredPreyEnv(Env):
         return np.array(dist_to_obs, dtype=np.float32)
     
     '''check if any preds collided with each other and mark as dead'''
-    def findAndKillCollidedPreds(self):
+    def __findAndKillCollidedPreds(self):
         #Not an automatic fail since other preds may still be alive
-        who_collided = self.FindMutualPredCollisions()
-        self.killCollidedPredsAndResetThem(who_collided)
+        who_collided = self.__FindMutualPredCollisions()
+        self.__killCollidedPredsAndResetThem(who_collided)
         return who_collided
 
   
     """Check if any 2 predators collide with each other. Not an automatic fail since other preds may still be alive """
-    def FindMutualPredCollisions(self):
+    def __FindMutualPredCollisions(self):
       who_collided = np.zeros(self.num_preds, dtype=bool)
       live_preds = [pred for pred in self.predators if pred.is_live]
       for pred1_idx, pred1 in enumerate(live_preds):
@@ -297,12 +309,12 @@ class PredPreyEnv(Env):
     #   return False
     
     '''OTOH, if any pred hit geofence or obstacle, its game over'''
-    def APredHitGeoFenceOrObs(self):
+    def __APredHitGeoFenceOrObs(self):
       return any(predator.hitGeoFence() or predator.hitObs() for predator in self.predators)
 
 
     # set their is_live to false, position to [-1] * num_dims, velocity to [0] * num_dims
-    def killCollidedPredsAndResetThem(self, who_collided):
+    def __killCollidedPredsAndResetThem(self, who_collided):
       for i, pred in enumerate(self.predators):
           if who_collided[i]:
               pred.is_live = False
@@ -311,13 +323,13 @@ class PredPreyEnv(Env):
               pred.velocity = np.zeros(self.num_dims)
 
 
-    def getReward(self, done):
+    def __getReward(self, done):
         shield_used = False
         if self.use_shield:
             shield_used = self.predators[0].shield_was_used_in_step if hasattr(self.predators[0], 'shield_was_used_in_step') else False
 
         if done:
-            if self.aPredCaughtPrey():
+            if self.__aPredCaughtPrey():
                 reward = 1
             else:
                 # reward = -1
@@ -354,15 +366,10 @@ class PredPreyEnv(Env):
             self.predators[0].shield_was_used_in_step = False
 
         return reward
-
-
-    def actionToAcceleration(self, action):
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        return action * self.max_acceleration
     
 
     '''Who should be responsible for determining caught - Predator or Env? Decided it was Env's responsibility as here it is Env that makes determinations by taking all context into account'''
-    def aPredCaughtPrey(self):
+    def __aPredCaughtPrey(self):
         for predator in self.predators:
             # if self.entityCollidedAt(predator, self.prey.position):
             if predator.at(self.prey.position, self.KILL_RADIUS):
