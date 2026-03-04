@@ -31,7 +31,7 @@ singleton  = {'name'         : 'singleton',
               'subst'        : subst,    
               'invariant'    : True}  
 
-openAction = {'name'       : "openAction",
+openAction = {  'name'       : "openAction",
                 'actionPred' : And( #moved -> U: open,      
                                     tankX == tank + inn - out), 
                 'envVar'     : [inn, out],
@@ -42,12 +42,12 @@ openAction = {'name'       : "openAction",
                 #this is a hack b/c of entire guard not being updated. w/o it, chooses U = ~open
                 #this is open /\ (t=2 -> ~open /\ t=2 -> ~open )
                 #ie And(open,Implies(Or(t==2, t==3), Not(open))), which simplifies to:
-                'controlPred': And(open, t!=2, t!=3),   
+                'controlPred': open, #, #And(open, t!=2, t!=3),   
                 'precNode'   : singleton,
                 'postNode'   : singleton
                 }
 
-closeAction = {'name'       : "closeAction",
+closeAction = { 'name'       : "closeAction",
                 'actionPred' : And( #moved -> U: Not(open), 
                                     tankX == tank - out),
                 'envVar'     : [inn, out],
@@ -55,10 +55,10 @@ closeAction = {'name'       : "closeAction",
                 'invariant'  : True,
                 'controlVar' : [open],
                 # why does this: 'controlPred': And(Not(open), s!=2, s!=3), instead of the one below lead to a *more* complex guard on the two actions? two extraneous conditions show up
-                'controlPred': And(Not(open), Implies(Or(s==2, s==3), open)),
+                'controlPred': Not(open), #True, #And(Not(open), Implies(Or(s==2, s==3), open)),
                 'precNode'   : singleton,
                 'postNode'   : singleton
-                }
+              }
 
 model       = {'name'        : 'Water Tank',
                'initNode'    : singleton,
@@ -66,38 +66,40 @@ model       = {'name'        : 'Water Tank',
                'transitions' : [openAction, closeAction]
               }
 
-# Required Properties
-""" open /\ Xclosed --> XXclosed /\ XXXclosed == 
-    ~open \/ X~closed \/ (XX~open /\ XXX~open) ===
-    (~open \/ Xopen \/ XXclosed) /\ (~open \/ Xopen \/ XXXclosed)
+# Required Properties : open & Xclosed --> XXclosed, not whats below!
+""" open & Xclosed --> XXclosed & XXXclosed == 
+    ~open | X~closed | (XX~open & XXX ~open) ===
+    (closed | Xopen | XXclosed) & (closed | Xopen | XXXclosed)
 """
 TANK_CAPACITY = 100
-NESTING_LEVEL = 3
+NUM_NEXTS = 2 #NOTE: FIX THIS FOR WHEN YOU ADD MORE TERMS!!
 initProps   = [tank == 0, out == 0]
 safetyPropsOpen = [ 0 <= tank, tank <= TANK_CAPACITY,
-                    0 <= t, t <= NESTING_LEVEL,
+                    0 <= t, t <= NUM_NEXTS,
                     Implies(And(t==0, open), tX==1),        #at the top level, if open, inc the counter
                     Implies(And(t==0, Not(open)), tX==0),   #if its not open, reset
 
                     Implies(And(t==1, Not(open)), tX==2),   #if its closed at level 2, inc the counter
                     Implies(And(t==1, open), tX==0),        #if its open, reset
 
-                    Implies(t==2, tX==3),                   #inc the counter
-                    Implies(t==3, tX==0),                   #end of cycle, reset
+                  #   Implies(t==2, tX==3),                   #inc the counter
+                  #   Implies(t==3, tX==0),                   #end of cycle, reset
+                    Implies(t==2, And(Not(open), tX==0)),
                     #for the reqts on t==2 and t==3 see openActions's control pred
                   ]
 safetyPropsClsd = [ 0 <= tank, tank <= TANK_CAPACITY,
-                    0 <= s, s <= NESTING_LEVEL,
+                    0 <= s, s <= NUM_NEXTS,
                     Implies(And(s==0, Not(open)), sX==1),   #at the top level, if closed, inc the counter
                     Implies(And(s==0, open), sX==0),        #if its open, reset
 
                     Implies(And(s==1, open), sX==2),        #if its open at level 2, inc the counter
                     Implies(And(s==1, Not(open)), sX==0),   #if its closed, reset
 
-                    Implies(s==2, sX==3),                   #inc the counter
-                    Implies(s==3, sX==0),                   #end of cycle, reset
+                  #   Implies(s==2, sX==3),                   #inc the counter
+                  #   Implies(s==3, sX==0),                   #end of cycle, reset
+                    Implies(s==2, And(open, sX==0)),                   #inc the counter
                     #for the reqts on t==2 and t==3 see closedActions's control pred
-                  ]              #   0 <= s, s <= NESTING_LEVEL,
+                  ]              #   0 <= s, s <= NUM_NEXTS,
               #   Implies(And(s==0, Not(open)), sX==1),   #at the top level, if not open, inc the counter
               #   Implies(And(s==0, open), sX==0),        #if its  open, no change
               #   Implies(And(s==1, open), sX==2),        #if its open at level 2, inc the counter
@@ -156,7 +158,7 @@ def OKProp1(open_valve, tank_level): #, t):
   return (res,t)
 
   # if open_valve and t==0: t = 1
-  # return (res, t+1 mod (NESTING_LEVEL+1))
+  # return (res, t+1 mod (NUM_NEXTS+1))
 
 """
 with just safetyPropsOpen produces:

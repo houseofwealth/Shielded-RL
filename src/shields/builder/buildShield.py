@@ -26,8 +26,8 @@ import pdb
 #set_option(max_args=10000, max_lines=10000, max_depth=10000, max_visited=10000)
 
 # Working Examples
-from shields.mr_models.model_1pt import *
-# from model_water_tank import *
+# from shields.mr_models.model_1pt import *
+from ..mr_models.model_water_tank import *
 # from model_mountain_car import *
 # from z3_bug import *
 
@@ -496,8 +496,8 @@ def runShield():
 if __name__ == '__main__':
     # if DOING_BOUNDED:   buildBLShield()
     # else:               buildSafetyShield()
-    buildBLShield()
-    # buildSafetyShield()
+    # buildBLShield()
+    buildSafetyShield()
 #   runShield()  
 
 

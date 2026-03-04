@@ -1,4 +1,5 @@
-from config import DEFAULT_CONFIG
+# from config import DEFAULT_CONFIG
+from wt_config import DEFAULT_CONFIG
 from copy import deepcopy
 from src.PPOLearner import PPOLearner
 import numpy as np

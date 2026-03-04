@@ -1,4 +1,4 @@
-from env import PredPreyEnv
+from game_of_drones_env import GameOfDronesEnv
 #below is what learning alg to use and which kind of policy it uses
 from stable_baselines3 import PPO
 from stable_baselines3.ppo.policies import MultiInputPolicy #MIP is alias for MultiInputActorCriticPolicy
@@ -19,12 +19,12 @@ TObs = 8
 
 DEFAULT_CONFIG = {
     'policy_class': MultiInputPolicy,
-    'learning_rate': 5e-5, #1e-4, #was 3e-4,     #the higher, the faster the learning but can be unstable or overshoot the optimal soln
+    'learning_rate': 3e-4,  #feb experiments with 5e-5,     #the higher, the faster the learning but can be unstable or overshoot the optimal soln
 
     # 'batch_size': was this higher? But im sticking with PPO default of 64
     'gamma': 0.99,                        #discount factor for future rewards
 
-    'ent_coef': 0.05, #was 0 then 0.1 (worsened) It prevents the policy from changing too drastically in one update, ensuring stable learning
+    'ent_coef': 0,   #Feb experiments used 0.05, #was 0 then 0.1 (worsened) It prevents the policy from changing too drastically in one update, ensuring stable learning
     #'target_kl': 0.05,                   
 
     'max_episode_length': 100,
@@ -32,7 +32,7 @@ DEFAULT_CONFIG = {
     'buffer_size': int(30E3),             #rollout buffer size
     # moved -> env_config b/c env now needs it 'use_shield': False,
     'num_shield_chances': 100,
-    'env_class': PredPreyEnv,
+    'env_class': GameOfDronesEnv,
     'env_config': {        
         'use_shield': False,
         'initial_prey_pos' : np.array([0, 10.0]),         #chg for 3-D, also Other option is 'random'

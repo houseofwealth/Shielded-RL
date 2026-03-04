@@ -8,6 +8,7 @@ class BaseAgent(ABC):
         # self._max_velocity = max_velocity
         self._workspace_size = workspace_size
         self.num_dims = num_dims
+        self.old_position = np.zeros(num_dims)
         self.position = np.zeros(num_dims)
         self.velocity = np.zeros(num_dims)
         self._is_live = True
@@ -70,8 +71,13 @@ class BaseAgent(ABC):
         return self.doing_geofence and self.hit_geofence
         
     def at(self, pos, min_sep):
-        distance = np.linalg.norm(self.position - pos)
-        return distance < min_sep
+        # distance = np.linalg.norm(self.position - pos)
+        # return distance < min_sep
+        for alpha in np.linspace(0, 1, 1000):
+            interpolated = (1 - alpha) * self.old_position + alpha * self.position
+            if np.linalg.norm(interpolated - pos) < min_sep:
+                return True
+        return False
 
     def normalizedDistanceTo(self, pos, min_sep=0):
         distance = np.linalg.norm(self.position - pos)
