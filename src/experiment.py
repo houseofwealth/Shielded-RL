@@ -1,5 +1,5 @@
-# from config import DEFAULT_CONFIG
-from wt_config import DEFAULT_CONFIG
+from config_gd import DEFAULT_CONFIG  # Game of Drones
+# from config_wt import DEFAULT_CONFIG   # Water Tank
 from copy import deepcopy
 from src.PPOLearner import PPOLearner
 import numpy as np
@@ -14,9 +14,9 @@ TODO:
 
 #this is where tensorboard will look for displaying results
 def mkResultsLoc(config):
-    results_loc = '../experiments/results/' + str(config['experiment_id'])
-    results_loc = os.path.abspath(results_loc)
-    return results_loc
+    script_dir = os.path.dirname(os.path.abspath(__file__))  # .../prototype/src
+    results_loc = os.path.join(script_dir, '../experiments/results', str(config['experiment_id']))
+    return os.path.abspath(results_loc)
 
 def saveConfig(config, results_loc=None):
     if results_loc is None:

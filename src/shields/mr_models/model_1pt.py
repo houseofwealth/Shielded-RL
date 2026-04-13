@@ -1,6 +1,6 @@
 #See note below about KILL_RADIUS how its used here
 from z3       import *
-from config import DEFAULT_CONFIG
+from config_gd import DEFAULT_CONFIG
 # from ipdb import set_trace
 
 ''' ------------------ CONSTANTS ------------------------------'''

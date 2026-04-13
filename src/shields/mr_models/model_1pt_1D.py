@@ -2,7 +2,7 @@
 # TBD: 
 # Implies(And(t != 0, x!=0), deadlineX == deadline) leads to divergence. Why? 
 from z3       import *
-from config import DEFAULT_CONFIG
+from config_gd import DEFAULT_CONFIG
 # from ipdb import set_trace
 
 ''' ------------------ CONSTANTS ------------------------------'''

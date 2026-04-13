@@ -4,8 +4,8 @@ import time
 from stable_baselines3.common.utils import safe_mean, obs_as_tensor
 import numpy as np
 import torch as th
-from src.ActionSelector import ActionSelector
-
+# from src.ActionSelector import ActionSelector
+# from src.DronesActionSelector import DronesActionSelector
 class PPOLearner(PPO):
     def __init__(
         self,
@@ -25,7 +25,11 @@ class PPOLearner(PPO):
         )
         self.use_shield = config['env_config']['use_shield']
         #policy member var gets initialized by the parent class (PPO) constructor..
-        self.action_selector = ActionSelector(config, self.policy, self.env)
+        # Action selector class is supplied by config so different envs can plug in their own.
+        # self.action_selector = ActionSelector(config, self.policy, self.env)  # original
+        # action_selector_class = config.get('action_selector_class', DronesActionSelector)  # old: defaulted to DronesActionSelector
+        action_selector_class = config['action_selector_class']
+        self.action_selector = action_selector_class(config, self.policy, self.env)
 
     '''Overrides parent method in PPO (which just calls its OPA's learn method this is same as that with couple of changes).
     learning = collect rollouts (episode runs) and then train the NNs on them'''
@@ -73,7 +77,7 @@ class PPOLearner(PPO):
         return self
 
 
-    '''Overrides method in OnPolicyAlgorithm (parent of PPO) code is almost literally the same. Only difference is that it calls getActionForEachPred() instead of policy()'''
+    '''Overrides method in OnPolicyAlgorithm (parent of PPO) code is almost literally the same. Only difference is that it calls getActionForEachAgent() instead of policy()'''
     def collect_rollouts(
         self,
         env,
@@ -117,7 +121,7 @@ class PPOLearner(PPO):
             # base method in OPA simply calls policy() to get action, but we need to pass the action to the shield first. action_selector needs the obs but since that's probably a numpy array, it needs to get converted to a tensor on the correct device first. Since action selection is just inferencing, turn off gradient calcs
             with th.no_grad():
                 obs_tensor = obs_as_tensor(self._last_obs, self.device)
-                action_per_pred, values, log_probs = self.action_selector.getActionForEachPred(obs_tensor)
+                action_per_pred, values, log_probs = self.action_selector.getActionForEachAgent(obs_tensor)
 
             clipped_actions = action_per_pred
             # Clip the actions to avoid out of bound error

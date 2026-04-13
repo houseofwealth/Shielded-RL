@@ -2,7 +2,7 @@
 # TBD: 
 # V1 of this diverges So hence this simplified model which did the trick here - set deadline to a fixed value and so only one of the original constraints need remain and now it converges, althugh its output has yet to be tested
 from z3       import *
-from config import DEFAULT_CONFIG
+from config_gd import DEFAULT_CONFIG
 # from ipdb import set_trace
 
 ''' ------------------ CONSTANTS ------------------------------'''
