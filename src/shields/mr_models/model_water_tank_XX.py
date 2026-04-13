@@ -1,4 +1,4 @@
-# model of water tank taken from "Safe Reinforcement Learning via Shielding"
+# Simplified model of water tank taken from "Safe Reinforcement Learning via Shielding that only does the XX constraints not the XXX ones. Full model is in _XX_XXX"
 # converted from shieldedRL/prototype format to mr.py format
 
 from z3          import *

@@ -1,5 +1,5 @@
-from config_gd import DEFAULT_CONFIG  # Game of Drones
-# from config_wt import DEFAULT_CONFIG   # Water Tank
+# from config_gd import DEFAULT_CONFIG  # Game of Drones
+from config_wt import DEFAULT_CONFIG   # Water Tank
 from copy import deepcopy
 from src.PPOLearner import PPOLearner
 import numpy as np

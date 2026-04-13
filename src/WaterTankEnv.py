@@ -155,7 +155,7 @@ class WaterTankEnv(Env):
         # closed∧Xopen→XXopen:   pattern [close,open,close] is a violation
         if temporal_violation:
             self.n_temporal_violations +=1
-            if implies(not self.use_shield, self.n_temporal_violations % 10 == 0):
+            if implies(not self.use_shield, self.n_temporal_violations % 100 == 0):
                 print(f'n_temporal_violations: {self.n_temporal_violations}')
             return -self.TEMPORAL_VIOLATION_PENALTY
         return 0.1     #small +ve reward for surviving

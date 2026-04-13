@@ -3,7 +3,7 @@ import numpy as np
 import torch as th
 from stable_baselines3.common.utils import obs_as_tensor
 from .ActionSelector import ActionSelector
-from .shields.mr_models.model_1pt import *
+from .shields.mr_models.model_gd import *
 from .shields.builder.utils import *
 
 

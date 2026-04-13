@@ -7,7 +7,7 @@ XX_XXX = True   # True  → 4-counter (o,c,p,d) XX+XXX model
 if XX_XXX:
     from .shields.mr_models.model_water_tank_XX_XXX import *
 else:
-    from .shields.mr_models.model_water_tank import *
+    from .shields.mr_models.model_water_tank_XX import *
 # from .shields.builder.utils import *
 
 # Shield guard constants (from buildShield output, NUM_NEXTS=2)
