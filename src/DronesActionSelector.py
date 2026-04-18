@@ -35,7 +35,7 @@ class DronesActionSelector(ActionSelector):
             print('had to pick rand action', action_per_pred)
                 # self.getRandomAction(deepcopy(single_obs)) #TBD: remove this 2nd deep copy?
 
-        assert len(action_per_pred) == self.env.num_dims, 'action is wrong size!'
+        assert len(action_per_pred) == self.env.num_preds * self.env.num_dims, 'action is wrong size!'
         return action_per_pred, value, log_prob_per_action
 
 
@@ -82,7 +82,9 @@ class DronesActionSelector(ActionSelector):
             chosen_action_index = self.selectOKAction(actionss, single_obs)
             return actionss, chosen_action_index
         else:
-            #even though its passed a dict with values being single array, policy still returns a 2-D array, [[-1.2, 3.4]]
+            #even though its passed a dict with values being single array, policy still returns a 2-D array, eg 3 preds
+            # [ [ 0.3, -0.7,  0.1,  0.9, -0.4,  0.2],   chance 0: joint action for all 3 preds
+            #   [-0.1,  0.5,  0.8, -0.3,  0.6, -0.9]...] #chance 2
             actionss, values, log_probs = self.policy(single_obs)
             # breakpoint()
             actionss = actionss.cpu().numpy()    
@@ -91,15 +93,17 @@ class DronesActionSelector(ActionSelector):
 
     def selectOKAction(self, actions, single_obs):
         #actionss is really actionss b/c each elt is an action per pred, but code below is only written for single pred. *TBD: fix for multiple preds*
-        assert(self.env.num_preds == 1), 'Multiple predators not implemented'
+        num_dims = self.env.num_dims
+        num_preds = self.env.num_preds
 
         # Get the positions that would result from the actions
-        num_dims = self.env.num_dims
-        current_position = single_obs['pred_posz'].cpu().numpy()
-        current_velocity = single_obs['agent_velocities'][:, :num_dims].cpu().numpy()
-        # print('current_position', current_position,'current_velocity', current_velocity)
-        current_state = np.concatenate((current_position, current_velocity), axis=1).squeeze().tolist()
-        current_state_z3 = list(map(toZ3Type, current_state))
+        pred_states = []
+        for pred_idx in range(num_preds):
+            current_position = single_obs['pred_posz'][:, pred_idx * num_dims:(pred_idx + 1) * num_dims].cpu().numpy()
+            current_velocity = single_obs['agent_velocities'][:, pred_idx * num_dims:(pred_idx + 1) * num_dims].cpu().numpy()
+            # print('current_position', current_position,'current_velocity', current_velocity)
+            current_state = np.concatenate((current_position, current_velocity), axis=1).squeeze().tolist()
+            pred_states.append(current_state)
 
         # valid_actions = []
         chosen_action_index = -1
@@ -110,30 +114,45 @@ class DronesActionSelector(ActionSelector):
 
         if self.env.start_of_episode:
           self.env.start_of_episode = False
-          se = solnExists(current_state, prey_st, self.env.STEPS_BOUND)
-          if se: print('solnExists in', current_state, prey_st, self.env.STEPS_BOUND)
-          else: print('***WARNING: no solution from', current_state, prey_st, self.env.STEPS_BOUND)
+          for pred_idx, current_state in enumerate(pred_states):
+            se = solnExists(current_state, prey_st, self.env.STEPS_BOUND)
+            if se: print(f'solnExists pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
+            else: print(f'***WARNING: no solution from pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
+
+        steps_remaining = self.env.STEPS_BOUND - self.env.n_steps_to_bound
 
         for num, action in enumerate(actions): 
             agent_action = action.tolist()
-            agent_acceleration = self.env.actionToAcceleration(agent_action)
-            
-            res = OK(
-                agent_acceleration,
-                current_state,
-                prey_st,
-                self.env.STEPS_BOUND - self.env.n_steps_to_bound,
-                )
-            if res:
-                # if num>0 and res == True: print('accepted', agent_acceleration, current_state)
-                if num > 0:     #if num=0 then shield wasn't needed
-                    self.env.predators[0].shield_was_used_in_step = True
+            all_ok = True
+            override_accels = {}  # pred_idx -> replacement acceleration
+            # agent_acceleration = self.env.actionToAcceleration(agent_action)  # old: single pred
+            joint_acceleration = self.env.actionToAcceleration(agent_action)  # clip against full joint action_space
+
+            for pred_idx in range(num_preds):
+                # pred_action = agent_action[pred_idx * num_dims:(pred_idx + 1) * num_dims]  # old: passed slice to actionToAcceleration, but that clips against full action_space shape so fails for num_preds>1
+                # pred_accel = self.env.actionToAcceleration(pred_action)  # old
+                pred_accel = joint_acceleration[pred_idx * num_dims:(pred_idx + 1) * num_dims]
+                res = OK(pred_accel, pred_states[pred_idx], prey_st, steps_remaining)
+                if not res:
+                    all_ok = False
+                    break
                 #this weird test for when OK returns the action the agent should pick
-                if res != True and len(res)==self.env.num_dims: 
-                    self.env.predators[0].shield_was_used_in_step = True
+                if res != True and len(res) == num_dims:
+                    override_accels[pred_idx] = res
+
+            if all_ok:
+                # if num>0 and res == True: print('accepted', agent_acceleration, current_state)
+                shield_needed = num > 0 or bool(override_accels)
+                if shield_needed:
+                    for pred in self.env.predators:
+                        pred.shield_was_used_in_step = True
+                if override_accels:
                     # print('res acc', res)
-                    res = self.acclerationToAction(res) #np.array(res)).tolist()
-                    actions[0] = res
+                    mixed_action = list(agent_action)
+                    for pred_idx, accel in override_accels.items():
+                        override_action = self.acclerationToAction(accel)
+                        mixed_action[pred_idx * num_dims:(pred_idx + 1) * num_dims] = override_action
+                    actions[0] = mixed_action
                     #**TBD what about multiple preds?
                     chosen_action_index = 0   
                 else:

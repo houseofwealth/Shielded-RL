@@ -151,6 +151,8 @@ else:
   Geofencing = []
 
 at_tgt = And(x == prey_x, y == prey_y)
+
+'''this doesnt work, to do BR as a safety prop need to use my timer based approach to manually construct it
 if DOING_BOUNDED:
   #from 2.1.2 when unlock happens can remove the deadline
   BR1 = Implies(at_tgt, deadlineX == NONE)     
@@ -160,7 +162,8 @@ if DOING_BOUNDED:
   BR3 = Implies(t==0, deadlineX == t+STEPS_BOUND)
   BR = [BR1,BR2,BR3]
 else:
-  BR = []
+'''
+BR = []
 
 # safetyProps = [L <= x, x <= R, B <= y, y <= T] + ObstacleAvoid     #the invariant to be maintained
 safetyProps = Geofencing + ObstacleAvoid # + BR    #the invariant to be maintained

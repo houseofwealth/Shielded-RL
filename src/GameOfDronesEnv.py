@@ -210,7 +210,7 @@ class GameOfDronesEnv(Env):
         _ = self.__findAndKillCollidedPreds()
         task_failed = self.__APredHitGeoFenceOrObs()
         if task_failed:
-            breakpoint()
+            # breakpoint()
             self.n_hit_geofence_or_obs += 1
             if self.n_hit_geofence_or_obs % 1 == 0: 
                 print('# times hit geofence or obs', self.n_hit_geofence_or_obs)
@@ -320,7 +320,7 @@ class GameOfDronesEnv(Env):
     def __getReward(self, done, task_failed):
         shield_used = False
         if self.use_shield:
-            shield_used = self.predators[0].shield_was_used_in_step if hasattr(self.predators[0], 'shield_was_used_in_step') else False
+            shield_used = any(getattr(pred, 'shield_was_used_in_step', False) for pred in self.predators)
 
         if done:
             if self.__aPredCaughtPrey():
@@ -359,7 +359,8 @@ class GameOfDronesEnv(Env):
                 self.prev_potential = potential
 
         if self.use_shield and shield_used:
-            self.predators[0].shield_was_used_in_step = False
+            for pred in self.predators:
+                pred.shield_was_used_in_step = False
 
         return reward
     
