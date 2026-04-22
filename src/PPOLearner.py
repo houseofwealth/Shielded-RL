@@ -4,8 +4,8 @@ import time
 from stable_baselines3.common.utils import safe_mean, obs_as_tensor
 import numpy as np
 import torch as th
-# from src.ActionSelector import ActionSelector
-# from src.DronesActionSelector import DronesActionSelector
+
+
 class PPOLearner(PPO):
     def __init__(
         self,
@@ -16,7 +16,7 @@ class PPOLearner(PPO):
         # this instantiates env, policy, and other member vars from parent class OnPolicyAlgorithm
         super().__init__(
                         config['policy_class'],
-                        # just passing env_vonfig not enough as env needs access to hyperparams like gamma: env = config['env_class'](config['env_config']),
+                        # just passing env_config not enough as env needs access to hyperparams like gamma: env = config['env_class'](config['env_config']),
                         env = config['env_class'](config),
                         tensorboard_log=tensorboard_log,
                         learning_rate=config['learning_rate'],
@@ -25,9 +25,6 @@ class PPOLearner(PPO):
         )
         self.use_shield = config['env_config']['use_shield']
         #policy member var gets initialized by the parent class (PPO) constructor..
-        # Action selector class is supplied by config so different envs can plug in their own.
-        # self.action_selector = ActionSelector(config, self.policy, self.env)  # original
-        # action_selector_class = config.get('action_selector_class', DronesActionSelector)  # old: defaulted to DronesActionSelector
         action_selector_class = config['action_selector_class']
         self.action_selector = action_selector_class(config, self.policy, self.env)
 
@@ -121,7 +118,7 @@ class PPOLearner(PPO):
             # base method in OPA simply calls policy() to get action, but we need to pass the action to the shield first. action_selector needs the obs but since that's probably a numpy array, it needs to get converted to a tensor on the correct device first. Since action selection is just inferencing, turn off gradient calcs
             with th.no_grad():
                 obs_tensor = obs_as_tensor(self._last_obs, self.device)
-                action_per_pred, values, log_probs = self.action_selector.getActionForEachAgent(obs_tensor)
+                action_per_pred, values, log_probs, is_random_action = self.action_selector.getActionForEachAgent(obs_tensor)
 
             clipped_actions = action_per_pred
             # Clip the actions to avoid out of bound error
@@ -140,7 +137,17 @@ class PPOLearner(PPO):
 
             env = SyncVectorEnv([make_env for _ in range(num_envs)])            
             This ensures that env.step() returns 5 values.'''
+            # stupid SB3 code won't let me do this because my step() method isn't called first rather VecEnv's, so it complains about an extra argument:
+            # new_obs, rewards, dones, infos = env.step(clipped_actions_for_vec_env, is_random_action)
             new_obs, rewards, dones, infos = env.step(clipped_actions_for_vec_env)
+
+            # Sanity check: with shield on, a geofence/obs hit should only happen when the shield
+            # failed to find any OK action (is_random_action=True). If it happens on a shielded
+            # action, the shield has a bug.
+            if self.use_shield:
+                hit = infos[0].get('task_failed', False)
+                if hit and not is_random_action:
+                    print('**WARNING: shield violation on a shielded action - shield bug?')
 
             self.num_timesteps += env.num_envs
 
@@ -187,6 +194,25 @@ class PPOLearner(PPO):
         callback.on_rollout_end()
         return True
     
+
+    def run(self, n_runs=100):
+        """Run the learnt model (no training) and print per-run rewards."""
+        rewards = []
+        for run_num in range(n_runs):
+            obs = self.env.reset()
+            done = False
+            total_reward = 0.0
+            while not done:
+                action, _states = self.predict(obs, deterministic=True)
+                obs, reward, done, info = self.env.step(action)
+                total_reward += reward
+            rewards.append(total_reward)
+            print(f'Run {run_num + 1}: total reward = {total_reward}')
+        print(f'\nAverage reward over {n_runs} runs: {np.mean(rewards):.3f}')
+        print(f'Success rate (reward=1): {np.mean([r == 1.0 for r in rewards]):.1%}')
+        if hasattr(self.env.envs[0], 'printSummary'):
+            self.env.envs[0].printSummary(n_runs)
+
 
     '''this info sent to tensorboard. The / convention just creates categories on tensorboard'''
     def log(self, iteration, log_interval):

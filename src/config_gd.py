@@ -52,7 +52,7 @@ DEFAULT_CONFIG = {
         'workspace_size':       10,
         'GEOFENCING' :          True,
         'DOING_OBSTACLES':      True, 
-        'DOING_BOUNDED':        False, 
+        'DOING_BOUNDED':        False,
         'STEPS_BOUND':          3,
         'LObs' :                LObs,
         'RObs' :                RObs,

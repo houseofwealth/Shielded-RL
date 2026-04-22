@@ -147,6 +147,12 @@ class WaterTankEnv(Env):
             'tank_level': np.array([self.tank_level], dtype=np.float32),
         }
 
+    def printSummary(self, n_runs):
+        print(f'\n--- Summary over {n_runs} runs ---')
+        print(f'Unsafe (tank over/under):    {self.n_unsafe}')
+        print(f'Truncated (timeout):         {self.n_truncated}')
+        print(f'Temporal violations:         {self.n_temporal_violations}')
+
     def __getReward(self, unsafe, temporal_violation=False):
         if unsafe:
             return -1.0

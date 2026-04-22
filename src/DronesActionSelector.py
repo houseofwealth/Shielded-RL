@@ -27,16 +27,18 @@ class DronesActionSelector(ActionSelector):
     def getActionForEachAgent(self, single_obs):   #obs is a tensor 
         # single_obs = deepcopy(obs)
         obss = self.replicateObsNumChancesTimes(single_obs)
+        is_random_action = False
         (action_per_pred, value, log_prob_per_action, failed_to_find_ok_action) = \
             self.getPolicyAction(obss, single_obs)
         if failed_to_find_ok_action:
             (action_per_pred, value, log_prob_per_action) = \
                 self.getRandomAction(single_obs) 
-            print('had to pick rand action', action_per_pred)
+            is_random_action = True
+            # print('had to pick rand action', action_per_pred)
                 # self.getRandomAction(deepcopy(single_obs)) #TBD: remove this 2nd deep copy?
 
         assert len(action_per_pred) == self.env.num_preds * self.env.num_dims, 'action is wrong size!'
-        return action_per_pred, value, log_prob_per_action
+        return action_per_pred, value, log_prob_per_action, is_random_action
 
 
     '''this along with all the other "action" methods below return an action per pred'''

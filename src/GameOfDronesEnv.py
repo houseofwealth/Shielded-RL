@@ -57,7 +57,7 @@ class GameOfDronesEnv(Env):
         return obs, {}               #SB3 expects these return values 
       
 
-    def step(self, action):
+    def step(self, action): #SB3 code won't allow this b/c its called internally and not expering extra params is_random_action=False):
         # print('env_action', action)
         # breakpoint()
         self.num_episode_steps += 1
@@ -92,19 +92,30 @@ class GameOfDronesEnv(Env):
             self.n_truncated += 1
             # [seems to be same as n_prey_escaped] if self.n_truncated%10 == 0: print('n_truncated', self.n_truncated)
 
-        '''done just means end the episode here, task_failed if preds collided (w/ each other, geofence, bound exceeded, etc), it got truncated if it took too long'''
-        done =  task_failed or \
-                self.__aPredCaughtPrey() or \
-                truncated or \
+        '''terminated = natural end of episode (task_failed, pred caught prey, or prey escaped); truncated = cut short by time limit.
+        Kept separate so VecEnv can set TimeLimit.truncated in infos, enabling correct GAE bootstrapping in collect_rollouts.
+        task_failed if preds collided (w/ each other, geofence, bound exceeded, etc)'''
+        prey_caught = self.__aPredCaughtPrey()
+        terminated = task_failed or \
+                prey_caught or \
                 prey_escaped
             
         # reward = self.getReward(obs['pred_posz'], obs['target_pos'], done)
-        reward = self.__getReward(done, task_failed)
+        # pass terminated or truncated so __getReward still fires terminal rewards on timeout (preserves existing behaviour)
+        reward = self.__getReward(terminated or truncated, task_failed)
         self.n_tot_rew += reward
         self.n_steps_to_bound += 1
         # SB3 wrapper on step() requires all these 5 things
-        return obs, reward, done, truncated, {'task_failed': task_failed}
+        return obs, reward, terminated, truncated, {'task_failed': task_failed, 'prey_caught': prey_caught, 'prey_escaped': prey_escaped}
 
+
+    def printSummary(self, n_runs):
+        print(f'\n--- Summary over {n_runs} runs ---')
+        print(f'Prey caught:          {self.n_prey_caught}')
+        print(f'Prey escaped:         {self.n_p_e}')
+        print(f'Truncated (timeout):  {self.n_truncated}')
+        print(f'Geofence/obs hits:    {self.n_hit_geofence_or_obs}')
+        print(f'Bound exceeded:       {self.n_bound_exceeded}')
 
     def actionToAcceleration(self, action):
         action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -206,13 +217,15 @@ class GameOfDronesEnv(Env):
     
 
     '''returns new system state and whether preds collided with each other, geofence, etc'''
-    def __getObservation(self):
+    def __getObservation(self, is_random_action=False):
         _ = self.__findAndKillCollidedPreds()
         task_failed = self.__APredHitGeoFenceOrObs()
         if task_failed:
             # breakpoint()
+            # if not is_random_action and self.use_shield:
+                # print('***Error: hit geofence or obs even though action wasnt random')
             self.n_hit_geofence_or_obs += 1
-            if self.n_hit_geofence_or_obs % 1 == 0: 
+            if self.n_hit_geofence_or_obs % 10 == 0: 
                 print('# times hit geofence or obs', self.n_hit_geofence_or_obs)
 
         pred_posz = np.concatenate([predator.position for predator in self.predators])
