@@ -3,8 +3,8 @@ import numpy as np
 import torch as th
 from stable_baselines3.common.utils import obs_as_tensor
 from .ActionSelector import ActionSelector
-from .shields.mr_models.model_gd import *
-from .shields.mr_models.model_gd_dist import OKDist #b/c it duplicates fn defns in model_gd
+from .shields.mr_models.model_gd import OK, solnExists
+from .shields.mr_models.model_gd_dist import OKDist
 from .shields.builder.utils import *
 
 
