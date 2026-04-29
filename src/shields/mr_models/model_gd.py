@@ -168,10 +168,6 @@ BR = []
 # safetyProps = [L <= x, x <= R, B <= y, y <= T] + ObstacleAvoid     #the invariant to be maintained
 safetyProps = Geofencing + ObstacleAvoid # + BR    #the invariant to be maintained
 
-# model of single point agent moving in rectangular geofence - control signal is acceleration
-def fnOr(xs): return any(xs)
-def fnAnd(xs): return all(xs)
-def fnNot(x): return not x
 
 def OK(
   agent_action,
@@ -473,8 +469,14 @@ def solnExistsBR_TGT_RAD_1Py(curr_st, prey_st, bound):
   return which_ones
 
 
+
+def fnOr(xs): return any(xs)
+def fnAnd(xs): return all(xs)
+def fnNot(x): return not x
+
 def implies(p,q):
   return not p or q
+
 # -------------------------- Test --------------------------------------------
 BOUND = 3
 if __name__ == "__main__":

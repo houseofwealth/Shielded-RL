@@ -141,13 +141,16 @@ class PPOLearner(PPO):
             # new_obs, rewards, dones, infos = env.step(clipped_actions_for_vec_env, is_random_action)
             new_obs, rewards, dones, infos = env.step(clipped_actions_for_vec_env)
 
-            # Sanity check: with shield on, a geofence/obs hit should only happen when the shield
+            # Sanity check: with shield on, task_failed should only happen when the shield
             # failed to find any OK action (is_random_action=True). If it happens on a shielded
-            # action, the shield has a bug.
+            # action, it may indicate a shield model gap (e.g. wall clipping causing MIN_SEP
+            # violation that the unbounded-space shield model could not anticipate).
             if self.use_shield:
                 hit = infos[0].get('task_failed', False)
                 if hit and not is_random_action:
-                    print('**WARNING: shield violation on a shielded action - shield bug?')
+                    print('**WARNING: task_failed on a shielded action (possible shield model gap, e.g. wall clipping)')
+                if hit and is_random_action:
+                    print('**WARNING: task_failed on a RANDOM action (shield exhausted all chances)')
 
             self.num_timesteps += env.num_envs
 

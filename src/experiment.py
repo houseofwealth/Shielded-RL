@@ -85,8 +85,8 @@ if __name__ == '__main__':
         # Each experiment gets and id and a save location
         experiment_id = np.random.randint(9E9)
         config['experiment_id'] = experiment_id
-        breakpoint()
         print('use_shield', config['env_config']['use_shield'])           
+        breakpoint()
         results_loc = mkResultsLoc(config)
         saveConfig(config, results_loc)  # Now config has experiment_id
         learner = mkPPOLearner(config, results_loc)

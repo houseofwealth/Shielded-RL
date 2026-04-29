@@ -11,7 +11,7 @@ class ActionSelector:
     def __init__(self, config, policy, env):
         self.env          = env.envs[0]   # NOTE: assumes VecEnv with exactly 1 env inside
         self.policy       = policy
-        self.num_chances  = config['num_shield_chances']
+        self.num_chances  = config['env_config']['num_shield_chances']
         self.config       = config
         self.n_agent_fails = 0
 

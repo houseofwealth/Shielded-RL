@@ -22,25 +22,53 @@ class BaseAgent(ABC):
         self.BObs = BObs
         
 
-    '''clips to the workspace, in addition sets a flag if the workspace boundary was hit (needed for geofencing)'''
+    """ OLD coordinate-wise clip (retained for reference) ---
     def clipPosToWSBoundary(self, isreset=False):
+        if self.__class__.__name__ == "Predator" and self.landedOutsideWS():
+            self.hit_geofence = True
         all_but_last = self.position[:-1]
         last = self.position[-1]
-
-        #WS is always -ws_size .. +ws_size except in last dim where its 0..ws_size, which is why last pos needs special handling see next block
-        # violations = (all_but_last < -self._workspace_size) | (all_but_last > self._workspace_size)
-        # last_violation = (last < 0) or (last > self._workspace_size)
-
-        #NOTE: hack fix it
-        # if self.__class__.__name__ == "Predator" and (np.any(violations) or last_violation):
-        if self.__class__.__name__ == "Predator" and self.landedOutsideWS():
-            # breakpoint()
-            self.hit_geofence = True
-
-        # account for last dim having different range 0..ws_size 
         clipped_all_but_last = np.clip(all_but_last, -self._workspace_size, self._workspace_size)
         clipped_last = np.clip(last, 0, self._workspace_size)
-        self.position = np.concatenate([clipped_all_but_last, [clipped_last]])
+        new_position = np.concatenate([clipped_all_but_last, [clipped_last]])
+        clipped_mask = (new_position != self.position)
+        if np.any(clipped_mask):
+            self.velocity = self.velocity.copy()
+            self.velocity[clipped_mask] = 0.0
+        self.position = new_position
+    """
+
+    '''Clips position to workspace boundary using ray-boundary intersection: finds the first wall the agent would hit along its displacement vector and stops it there. This preserves each agent's unique boundary contact point (unlike old np.clip which collapses any out-of-bounds agent to the nearest corner regardless of direction, causing spurious co-location of multiple agents). Also sets hit_geofence flag and zeroes velocity in the hit dimension(s).'''
+    def clipPosToWSBoundary(self, isreset=False):
+        if self.__class__.__name__ == "Predator" and self.landedOutsideWS():
+            self.hit_geofence = True
+
+        displacement = self.position - self.old_position
+
+        # t=1 means full step with no wall hit; t<1 means wall is hit before end of step
+        t_hit = 1.0
+        hit_dims = np.zeros(self.num_dims, dtype=bool)
+
+        for d in range(self.num_dims):
+            lo = 0.0 if d == self.num_dims - 1 else -self._workspace_size
+            hi = self._workspace_size
+            if abs(displacement[d]) < 1e-12:
+                continue
+            t = (hi - self.old_position[d]) / displacement[d] if displacement[d] > 0 \
+                else (lo - self.old_position[d]) / displacement[d]
+            t = max(t, 0.0)  # clamp: if already outside, snap immediately
+            if t < t_hit - 1e-12:       # strictly earlier wall hit
+                t_hit = t
+                hit_dims[:] = False
+                hit_dims[d] = True
+            elif t < t_hit + 1e-12:     # same t: hit a corner, both dims
+                hit_dims[d] = True
+
+        if t_hit < 1.0:
+            self.position = self.old_position + t_hit * displacement
+            # Zero velocity in hit dimension(s): wall absorbs outward momentum
+            self.velocity = self.velocity.copy()
+            self.velocity[hit_dims] = 0.0
     
     def landedOutsideWS(self):
         #checks if any of the elements of the position falls outside the workspace boundary. WS is always -ws_size .. +ws_size except in last dim where its 0..ws_size, which is why last pos needs special handling

@@ -32,6 +32,8 @@ class GameOfDronesEnv(Env):
         # self.reset()              #not needed, training loop in SB3 calls it before each episode
         self.hitGeoFenceOrObs = False
         self.n_hit_geofence_or_obs = 0
+        self.n_sep_violations = 0
+        self.n_pred_collisions = 0
         self.n_prey_caught = 0
         self.n_tot_rew = 0
         self.n_bound_exceeded = 0
@@ -53,6 +55,7 @@ class GameOfDronesEnv(Env):
         #                   self.prey.position + self.prey.velocity, 
         #                   self.env.STEPS_BOUND)
         
+        self.any_pred_collided_this_step = False  # clear any collision flag set during reset's __getObservation
         self.start_of_episode = True
         return obs, {}               #SB3 expects these return values 
       
@@ -69,8 +72,35 @@ class GameOfDronesEnv(Env):
                 start_idx = pred_num * self.num_dims
                 end_idx = (pred_num + 1) * self.num_dims
                 predator.move(acceleration[start_idx:end_idx], self.STEP_SIZE)
-                predator.clipPosToWSBoundary()    
-        
+                predator.clipPosToWSBoundary()
+
+        # Post-clip sep fix: clipping can push preds closer than MIN_SEP. Randomly reposition the
+        # offending pred within the workspace until all pairs satisfy sep. Random positions land
+        # well away from the threshold so float32 precision issues (unlike a deterministic nudge
+        # to exactly MIN_SEP) are avoided.
+        if self.DOING_SEP and self.MIN_SEP > 0 and self.num_preds > 1:
+            while self.__predsViolateSep():
+                live_preds = [p for p in self.predators if p.is_live]
+                for i in range(len(live_preds)):
+                    for j in range(i + 1, len(live_preds)):
+                        p1, p2 = live_preds[i], live_preds[j]
+                        if np.max(np.abs(p1.position - p2.position)) < self.MIN_SEP:
+                            low = np.array([-self.workspace_size] * (self.num_dims - 1) + [0.0], dtype=np.float32)
+                            high = np.full(self.num_dims, self.workspace_size, dtype=np.float32)
+                            p1.position = np.random.uniform(low, high).astype(np.float32)
+            # Old nudge code - replaced because: (1) nudging to exactly MIN_SEP triggers float32
+            # precision failures in __predsViolateSep, (2) no re-clip after nudge could push pred outside arena.
+            # live_preds = [p for p in self.predators if p.is_live]
+            # for i in range(len(live_preds)):
+            #     for j in range(i + 1, len(live_preds)):
+            #         p1, p2 = live_preds[i], live_preds[j]
+            #         diff = p1.position - p2.position   # p1 relative to p2
+            #         if np.max(np.abs(diff)) < self.MIN_SEP:
+            #             d = int(np.argmax(np.abs(diff)))  # nudge in most-separated dim
+            #             sign = 1.0 if diff[d] >= 0 else -1.0
+            #             p1.position = p1.position.copy()
+            #             p1.position[d] += sign * (self.MIN_SEP - abs(diff[d]))
+
         #prey has no acceleration!
         self.prey.move(0, self.STEP_SIZE)   #prey moves w/ constant velocity
         self.prey.clipPosToWSBoundary()
@@ -115,6 +145,8 @@ class GameOfDronesEnv(Env):
         print(f'Prey escaped:         {self.n_p_e}')
         print(f'Truncated (timeout):  {self.n_truncated}')
         print(f'Geofence/obs hits:    {self.n_hit_geofence_or_obs}')
+        print(f'MIN_SEP violations:   {self.n_sep_violations}')
+        print(f'Pred-pred collisions: {self.n_pred_collisions}')
         print(f'Bound exceeded:       {self.n_bound_exceeded}')
 
     def actionToAcceleration(self, action):
@@ -128,6 +160,7 @@ class GameOfDronesEnv(Env):
     def __resetCountsAndFlags(self):
         self.num_episode_steps = 0
         self.n_steps_to_bound = 0
+        self.any_pred_collided_this_step = False
 
     def __initPreyPosAndVel(self):
         self.prey.is_live = True
@@ -145,10 +178,10 @@ class GameOfDronesEnv(Env):
 
 
     def __initPredPoszAndVels(self):
-        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
-        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs:
+        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True; preds_violate_sep = True
+        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs or preds_violate_sep:
             #reset all the flags at the start of each iteration in case a flag gets unset but another remains true in a given iteration
-            preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
+            preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True; preds_violate_sep = True
             positions = self.pred_posz_space.sample()  # produces for say a 2 pred 3d space a 6 element vector [-2, 8, -1, 4, -3, 10]
             for pred_num, predator in enumerate(self.predators):
                 start = pred_num * self.num_dims
@@ -162,13 +195,16 @@ class GameOfDronesEnv(Env):
                 predator.shield_was_used_in_step = False
 
             # check it didnt place preds on top of each other or outside WS or inside obstacle
-            collisions = self.__findAndKillCollidedPreds()
+            # Use __FindMutualPredCollisions directly to avoid incrementing n_pred_collisions during init
+            collisions = self.__FindMutualPredCollisions()
             if not np.any(collisions):
                 preds_collided = False
             if not any(predator.landedOutsideWS() for predator in self.predators):
                 pred_landed_outside_ws = False
             if not any(predator.hitObs() for predator in self.predators):
                 pred_landed_in_obs = False
+            if not self.__predsViolateSep():
+                preds_violate_sep = False
 
     def __mkSpaces(self):
         total_num_preds = self.num_preds #+ self.num_fake_preds
@@ -225,8 +261,13 @@ class GameOfDronesEnv(Env):
             # if not is_random_action and self.use_shield:
                 # print('***Error: hit geofence or obs even though action wasnt random')
             self.n_hit_geofence_or_obs += 1
-            if self.n_hit_geofence_or_obs % 10 == 0: 
+            if self.n_hit_geofence_or_obs % 1 == 0: 
                 print('# times hit geofence or obs', self.n_hit_geofence_or_obs)
+        if not task_failed and self.__predsViolateSep():
+            task_failed = True
+            self.n_sep_violations += 1
+            if self.n_sep_violations % 1 == 0:
+                print('# times preds violated MIN_SEP', self.n_sep_violations)
 
         pred_posz = np.concatenate([predator.position for predator in self.predators])
         pred_velocities = np.concatenate([predator.velocity for predator in self.predators])
@@ -300,6 +341,7 @@ class GameOfDronesEnv(Env):
         #Not an automatic fail since other preds may still be alive
         who_collided = self.__FindMutualPredCollisions()
         self.__killCollidedPredsAndResetThem(who_collided)
+        self.any_pred_collided_this_step = bool(np.any(who_collided))
         return who_collided
 
   
@@ -309,7 +351,7 @@ class GameOfDronesEnv(Env):
       live_preds = [pred for pred in self.predators if pred.is_live]
       for pred1_idx, pred1 in enumerate(live_preds):
           for pred2_relative_idx, pred2 in enumerate(live_preds[pred1_idx+1:]):
-              if np.linalg.norm(pred1.position - pred2.position) < self.PRED_SIZE:
+              if np.linalg.norm(pred1.position - pred2.position) <= self.PRED_SIZE:
                   who_collided[pred1_idx] = True
                   who_collided[pred1_idx + pred2_relative_idx  + 1] = True
       return who_collided
@@ -318,6 +360,18 @@ class GameOfDronesEnv(Env):
     '''OTOH, if any pred hit geofence or obstacle, its game over'''
     def __APredHitGeoFenceOrObs(self):
       return any(predator.hitGeoFence() or predator.hitObs() for predator in self.predators)
+
+    '''When DOING_SEP is on, check if any pair of live preds violate MIN_SEP (L-inf distance < MIN_SEP)'''
+    def __predsViolateSep(self):
+        if not self.DOING_SEP or self.MIN_SEP <= 0:
+            return False
+        live_preds = [p for p in self.predators if p.is_live]
+        for i, p1 in enumerate(live_preds):
+            for p2 in live_preds[i+1:]:
+                diff = p1.position - p2.position
+                if np.max(np.abs(diff)) < self.MIN_SEP:
+                    return True
+        return False
 
 
     # set their is_live to false, position to [-1] * num_dims, velocity to [0] * num_dims
@@ -339,18 +393,8 @@ class GameOfDronesEnv(Env):
             if self.__aPredCaughtPrey():
                 reward = 1
             else:
-                # reward = -1
-                #*TBD: why is this just 1st predator. Need to figure out how to do this for multiagant
-                # if self.predators[0].hitGeoFence() or self.predators[0].hitObs(): #hit_geofence would have been set in step() after clipping
-                if task_failed:
-                    reward = -1
-                else:
-                    reward = -1
-                    # # reward proportional to how close the predator got to the prey
-                    # # predator_pos = self.predators[0].position  # Assuming single predator
-                    # prey_pos = self.prey.position
-                    # normalized_distance = self.predators[0].normalizedDistanceTo(prey_pos)
-                    # # reward = -normalized_distance  # Negative reward proportional to normalized distance
+                # -1 for any terminal failure: geofence/obs hit, bound exceeded, prey escaped, or truncation
+                reward = -1
         else: #episode not finished, no biscuit for you yet. *TBD?: small reward for surviving or getting close to prey?
             # 1. simplest: reward = 0 # does slightly better?
             # 2. then tried:
@@ -362,7 +406,14 @@ class GameOfDronesEnv(Env):
             # 3.
             if True: #self.use_shield:
                 reward = 0
-            else:
+                # small per-step penalty for pred-pred collision (episode continues, other preds may still be alive)
+                if self.any_pred_collided_this_step:
+                    self.n_pred_collisions += 1
+                    if self.n_pred_collisions % 1 == 0:
+                        print('# pred-pred collisions', self.n_pred_collisions)
+                    reward += getattr(self, 'pred_collision_penalty', -0.1)
+                    self.any_pred_collided_this_step = False
+            else: #self.use_shield:
                 #PBR scheme from Mn at al, 1999
                 prey_pos = self.prey.position
                 #this will be between 0 (its as far from prey as poss) and 1 (its at prey)

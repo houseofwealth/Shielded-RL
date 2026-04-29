@@ -4,6 +4,7 @@ import torch as th
 from stable_baselines3.common.utils import obs_as_tensor
 from .ActionSelector import ActionSelector
 from .shields.mr_models.model_gd import *
+from .shields.mr_models.model_gd_dist import OKDist #b/c it duplicates fn defns in model_gd
 from .shields.builder.utils import *
 
 
@@ -23,7 +24,7 @@ class DronesActionSelector(ActionSelector):
         #     raise NotImplementedError('Multiple predators not implemented')
 
 
-    '''returns triple: action_per_pred, value, log_prob_per_action, of which action_per_pred is a numpy array of vectors of length num_preds <-- OR is it an array of length num_preds*num_dims? b/c i think (eg [1.0,2.0,30, 0.1,0.2,0.3] for 2 preds in 3D)'''
+    '''returns triple: action_per_pred, value, log_prob_per_action, of which action_per_pred is a numpy array of vectors of length num_preds <-- OR is it an array of length num_preds*num_dims? b/c i think (eg [1.0,2.0,3.0, 0.1,0.2,0.3] for 2 preds in 3D)'''
     def getActionForEachAgent(self, single_obs):   #obs is a tensor 
         # single_obs = deepcopy(obs)
         obss = self.replicateObsNumChancesTimes(single_obs)
@@ -34,7 +35,7 @@ class DronesActionSelector(ActionSelector):
             (action_per_pred, value, log_prob_per_action) = \
                 self.getRandomAction(single_obs) 
             is_random_action = True
-            # print('had to pick rand action', action_per_pred)
+            print('had to pick rand action', action_per_pred)
                 # self.getRandomAction(deepcopy(single_obs)) #TBD: remove this 2nd deep copy?
 
         assert len(action_per_pred) == self.env.num_preds * self.env.num_dims, 'action is wrong size!'
@@ -126,32 +127,46 @@ class DronesActionSelector(ActionSelector):
         for num, action in enumerate(actions): 
             agent_action = action.tolist()
             all_ok = True
-            override_accels = {}  # pred_idx -> replacement acceleration
+            replaced_accs = {}  # pred_idx -> replacement acceleration
             # agent_acceleration = self.env.actionToAcceleration(agent_action)  # old: single pred
-            joint_acceleration = self.env.actionToAcceleration(agent_action)  # clip against full joint action_space
+            joint_acc = self.env.actionToAcceleration(agent_action)  # clip against full joint action_space
 
+            pred_accs = []
             for pred_idx in range(num_preds):
                 # pred_action = agent_action[pred_idx * num_dims:(pred_idx + 1) * num_dims]  # old: passed slice to actionToAcceleration, but that clips against full action_space shape so fails for num_preds>1
-                # pred_accel = self.env.actionToAcceleration(pred_action)  # old
-                pred_accel = joint_acceleration[pred_idx * num_dims:(pred_idx + 1) * num_dims]
-                res = OK(pred_accel, pred_states[pred_idx], prey_st, steps_remaining)
+                # pred_acc = self.env.actionToAcceleration(pred_action)  # old
+                pred_acc = joint_acc[pred_idx * num_dims:(pred_idx + 1) * num_dims]
+                pred_accs.append(pred_acc)
+                res = OK(pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
                 if not res:
                     all_ok = False
                     break
                 #this weird test for when OK returns the action the agent should pick
                 if res != True and len(res) == num_dims:
-                    override_accels[pred_idx] = res
+                    replaced_accs[pred_idx] = res
+
+            # Pairwise separation check: only pred i=0 is held responsible for each pair (i,j)
+            if all_ok and num_preds > 1:
+                for i in range(num_preds):
+                    for j in range(i + 1, num_preds):
+                        accel_i = replaced_accs.get(i, pred_accs[i])
+                        accel_j = replaced_accs.get(j, pred_accs[j])
+                        if not OKDist(accel_i, pred_states[i], accel_j, pred_states[j]):
+                            all_ok = False
+                            break
+                    if not all_ok:
+                        break
 
             if all_ok:
                 # if num>0 and res == True: print('accepted', agent_acceleration, current_state)
-                shield_needed = num > 0 or bool(override_accels)
+                shield_needed = num > 0 or replaced_accs
                 if shield_needed:
                     for pred in self.env.predators:
                         pred.shield_was_used_in_step = True
-                if override_accels:
+                if replaced_accs:
                     # print('res acc', res)
                     mixed_action = list(agent_action)
-                    for pred_idx, accel in override_accels.items():
+                    for pred_idx, accel in replaced_accs.items():
                         override_action = self.acclerationToAction(accel)
                         mixed_action[pred_idx * num_dims:(pred_idx + 1) * num_dims] = override_action
                     actions[0] = mixed_action
@@ -162,7 +177,7 @@ class DronesActionSelector(ActionSelector):
                     chosen_action_index = num
                 break
             # else: 
-                # print('agent_acceleration', agent_acceleration, "failed in", current_state)
+                # print('agent_acc', agent_acc, "failed in", current_state)
         return chosen_action_index    
 
 

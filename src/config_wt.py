@@ -4,15 +4,19 @@ from src.WaterTankActionSelector import WaterTankActionSelector
 
 DEFAULT_CONFIG = {
     'policy_class':             MultiInputPolicy,
+    'env_class':                WaterTankEnv,
+    'action_selector_class':    WaterTankActionSelector,
+
+    # ---hyperparams---
     'learning_rate':            3e-4,
     'gamma':                    0.99,
     'max_learning_steps':       int(500E3),
     'buffer_size':              int(30E3),
-    'num_shield_chances':       -1,
-    'env_class':                WaterTankEnv,
-    'action_selector_class':    WaterTankActionSelector,
+
+    # ---environment setup---
     'env_config': {
         'use_shield':           False,  
+        'num_shield_chances':   -1,
         'INITIAL_TANK_LEVEL':   50.0,   # starting tank level
         'TANK_CAPACITY':        100.0,  # episode ends if exceeded
         'INN_MIN':              1.0,    # inflow lower bound  (from model envPred)

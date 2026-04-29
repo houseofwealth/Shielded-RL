@@ -26,8 +26,9 @@ import pdb
 #set_option(max_args=10000, max_lines=10000, max_depth=10000, max_visited=10000)
 
 # Working Examples
-# from shields.mr_models.model_1pt import *
-from ..mr_models.model_water_tank import *
+# from shields.mr_models.model_gd import *
+from shields.mr_models.model_gd_dist import *
+# from ..mr_models.model_water_tank import *
 # from model_mountain_car import *
 # from z3_bug import *
 
