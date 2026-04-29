@@ -146,7 +146,7 @@ class DronesActionSelector(ActionSelector):
                     replaced_accs[pred_idx] = res
 
             # Pairwise separation check: only pred i=0 is held responsible for each pair (i,j)
-            if all_ok and num_preds > 1:
+            if all_ok and self.env.DOING_SEP and num_preds > 1:
                 for i in range(num_preds):
                     for j in range(i + 1, num_preds):
                         accel_i = replaced_accs.get(i, pred_accs[i])

@@ -348,12 +348,13 @@ class GameOfDronesEnv(Env):
     """Check if any 2 predators collide with each other. Not an automatic fail since other preds may still be alive """
     def __FindMutualPredCollisions(self):
       who_collided = np.zeros(self.num_preds, dtype=bool)
-      live_preds = [pred for pred in self.predators if pred.is_live]
-      for pred1_idx, pred1 in enumerate(live_preds):
-          for pred2_relative_idx, pred2 in enumerate(live_preds[pred1_idx+1:]):
+      live_preds = [(idx, pred) for idx, pred in enumerate(self.predators) if pred.is_live]
+            #enumerate produces the pairs (index,value) for each value in live_preds, do this b/c need the index of the pred from the original pred list not from live_preds
+      for pred1_idx_in_live_preds, (pred1_idx_in_preds, pred1) in enumerate(live_preds):
+          for pred2_idx, pred2 in live_preds[pred1_idx_in_live_preds + 1:]:
               if np.linalg.norm(pred1.position - pred2.position) <= self.PRED_SIZE:
-                  who_collided[pred1_idx] = True
-                  who_collided[pred1_idx + pred2_relative_idx  + 1] = True
+                  who_collided[pred1_idx_in_preds] = True
+                  who_collided[pred2_idx] = True
       return who_collided
     
     
@@ -417,7 +418,11 @@ class GameOfDronesEnv(Env):
                 #PBR scheme from Mn at al, 1999
                 prey_pos = self.prey.position
                 #this will be between 0 (its as far from prey as poss) and 1 (its at prey)
-                normalized_distance = self.predators[0].normalizedDistanceTo(prey_pos, min_sep=self.KILL_RADIUS)
+                live_preds = [pred for pred in self.predators if pred.is_live]
+                normalized_distance = min(
+                    (pred.normalizedDistanceTo(prey_pos, min_sep=self.KILL_RADIUS) for pred in live_preds),
+                    default=1.0,
+                )
                 potential = 1 - normalized_distance
                 reward = self.gamma * potential - self.prev_potential  # only potential increase gets +ve reward, to encourage getting closer to prey
                 self.prev_potential = potential
