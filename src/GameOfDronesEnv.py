@@ -67,27 +67,36 @@ class GameOfDronesEnv(Env):
         # self.num_steps_in_this_env += 1
         acceleration = self.actionToAcceleration(action)
 
+        # ask each pred to move and if its position falls outside the arena it needs to be clipped. However, sometimes that clipping can cause preds to end up closer than MIN_SEP, so after all preds have moved and been clipped, a correction may be needed see below, but need to record which preds were clipped
+        predators_clipped_this_step = np.zeros(self.num_preds, dtype=bool)
         for pred_num, predator in enumerate(self.predators):
             if predator.is_live:
                 start_idx = pred_num * self.num_dims
                 end_idx = (pred_num + 1) * self.num_dims
                 predator.move(acceleration[start_idx:end_idx], self.STEP_SIZE)
+                pre_clip_position = predator.position.copy()
                 predator.clipPosToWSBoundary()
+                predators_clipped_this_step[pred_num] = not np.array_equal(predator.position, pre_clip_position)
 
-        # Post-clip sep fix: clipping can push preds closer than MIN_SEP. Randomly reposition the
-        # offending pred within the workspace until all pairs satisfy sep. Random positions land
-        # well away from the threshold so float32 precision issues (unlike a deterministic nudge
-        # to exactly MIN_SEP) are avoided.
+        # Post-clip sep fix: clipping can push preds closer than MIN_SEP. Only repair violating pairs involving a predator whose motion was clipped this step; unclipped sep failures should remain visible to __getObservation(). Random positions land well away from the threshold so float32 precision issues (unlike a deterministic nudge to exactly MIN_SEP) are avoided.
         if self.DOING_SEP and self.MIN_SEP > 0 and self.num_preds > 1:
-            while self.__predsViolateSep():
-                live_preds = [p for p in self.predators if p.is_live]
+            low = np.array([-self.workspace_size] * (self.num_dims - 1) + [0.0], dtype=np.float32)
+            high = np.full(self.num_dims, self.workspace_size, dtype=np.float32)
+            while True:
+                live_preds = [(idx, p) for idx, p in enumerate(self.predators) if p.is_live]
+                repaired_any = False
                 for i in range(len(live_preds)):
-                    for j in range(i + 1, len(live_preds)):
-                        p1, p2 = live_preds[i], live_preds[j]
-                        if np.max(np.abs(p1.position - p2.position)) < self.MIN_SEP:
-                            low = np.array([-self.workspace_size] * (self.num_dims - 1) + [0.0], dtype=np.float32)
-                            high = np.full(self.num_dims, self.workspace_size, dtype=np.float32)
-                            p1.position = np.random.uniform(low, high).astype(np.float32)
+                    pred1_idx, p1 = live_preds[i]
+                    for pred2_idx, p2 in live_preds[i + 1:]:
+                        if np.max(np.abs(p1.position - p2.position)) >= self.MIN_SEP:
+                            continue
+                        if not (predators_clipped_this_step[pred1_idx] or predators_clipped_this_step[pred2_idx]):
+                            continue
+                        pred_to_reposition = p1 if predators_clipped_this_step[pred1_idx] else p2
+                        pred_to_reposition.position = np.random.uniform(low, high).astype(np.float32)
+                        repaired_any = True
+                if not repaired_any:
+                    break
             # Old nudge code - replaced because: (1) nudging to exactly MIN_SEP triggers float32
             # precision failures in __predsViolateSep, (2) no re-clip after nudge could push pred outside arena.
             # live_preds = [p for p in self.predators if p.is_live]
