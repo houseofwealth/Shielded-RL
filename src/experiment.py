@@ -28,6 +28,11 @@ def saveConfig(config, results_loc=None):
     with open(fname, 'w') as f:
         print(config, file=f)
 
+def printEnvConfigSettings(config):
+    env_config = config['env_config']
+    print('use_shield', env_config['use_shield'])
+    print('num_preds', env_config['num_preds'])
+
 ''' Create a learner. SB3 calls this the PPO "model" or algorithm but technically the model is the A-C networks '''
 def mkPPOLearner(config, results_loc):
     # do we need to adjust lr schedule at all? See SB3 notes
@@ -85,7 +90,7 @@ if __name__ == '__main__':
         # Each experiment gets and id and a save location
         experiment_id = np.random.randint(9E9)
         config['experiment_id'] = experiment_id
-        print('use_shield', config['env_config']['use_shield'])           
+        printEnvConfigSettings(config)
         breakpoint()
         results_loc = mkResultsLoc(config)
         saveConfig(config, results_loc)  # Now config has experiment_id

@@ -47,7 +47,7 @@ DEFAULT_CONFIG = {
         #TBD: do we want to limit prey and pred speeds to account for terminal velcocities?
         # 'max_velocity': 10 / STEP_SIZE,
         'base_position':        np.array([0.0, 0.0]),
-        'num_preds':            2,
+        'num_preds':            3,
         'num_dims':             2,
         'PRED_SIZE':            0, # 0.1 for shield, 1 for no shield
         'PREY_SIZE':            0.1, #<-- why not make this AGENT_SIZE as well?

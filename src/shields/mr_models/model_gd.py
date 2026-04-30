@@ -7,13 +7,10 @@ from config_gd import DEFAULT_CONFIG
 _3D = False   #NB has to stay False for evaluation until Python is modified accordinly
 DELTA_T = DEFAULT_CONFIG['env_config']['STEP_SIZE']
 ws = DEFAULT_CONFIG['env_config']['workspace_size']
-print('workspace_size = ', ws)
 A_MAX = DEFAULT_CONFIG['env_config']['max_acceleration']
 A_MIN = -A_MAX
-print('acceleration bounds A_MAX =', A_MAX)
 # TARGET_RADIUS = DEFAULT_CONFIG['env_config']['PRED_SIZE']
 KILL_RADIUS = DEFAULT_CONFIG['env_config']['KILL_RADIUS']
-print('KILL_RADIUS', KILL_RADIUS)
 
 L = -ws; R=ws; B=0; T=ws; C = -ws; F = ws
 # LObs = -8; RObs=8; BObs=5; TObs=15            #is 16x10
@@ -29,14 +26,22 @@ TObs = DEFAULT_CONFIG['env_config']['TObs']
 BObs = DEFAULT_CONFIG['env_config']['BObs']
 
 DOING_OBSTACLES = DEFAULT_CONFIG['env_config']['DOING_OBSTACLES']
-print("DOING_OBSTACLES", DOING_OBSTACLES)
-if DOING_OBSTACLES: print('LObs RObs CObs FObs BObs TObs', LObs, RObs, CObs, FObs, BObs, TObs)
 GEOFENCING = DEFAULT_CONFIG['env_config']['GEOFENCING']
-print('GEOFENCING', GEOFENCING)
 DOING_BOUNDED = DEFAULT_CONFIG['env_config']['DOING_BOUNDED']
-print('DOING_BOUNDED', DOING_BOUNDED)
 STEPS_BOUND = DEFAULT_CONFIG['env_config']['STEPS_BOUND']
-print('STEPS_BOUND', STEPS_BOUND)
+
+def printModelConfigSettings():
+  print('workspace_size = ', ws)
+  print('acceleration bounds A_MAX =', A_MAX)
+  print('KILL_RADIUS', KILL_RADIUS)
+  print("DOING_OBSTACLES", DOING_OBSTACLES)
+  if DOING_OBSTACLES:
+    print('LObs RObs CObs FObs BObs TObs', LObs, RObs, CObs, FObs, BObs, TObs)
+  print('GEOFENCING', GEOFENCING)
+  print('DOING_BOUNDED', DOING_BOUNDED)
+  print('STEPS_BOUND', STEPS_BOUND)
+
+printModelConfigSettings()
 
 
 NONE = -1
