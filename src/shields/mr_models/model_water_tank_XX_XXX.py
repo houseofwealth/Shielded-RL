@@ -6,6 +6,7 @@ from z3          import *
 from types       import SimpleNamespace
 
 Time = IntSort()
+global_props = [] # globals() is used by Python
 
 # State variables
 o, oX, p, pX = Consts('o oX p pX', Time)  #for open XX (o) and XXXX (p)
@@ -107,7 +108,7 @@ model = SimpleNamespace(
 TANK_CAPACITY = 100
 
 initProps = [tank == 0, out == 0]
-safetyProps = {0 <= tank, tank <= TANK_CAPACITY}
+safetyProps = [0 <= tank, tank <= TANK_CAPACITY]
 
 """ if you want to do the props for Open and Closed seperately need to remove whichever from the corresponding action def. They are not properties to be satisfied but essentially step invariants being asserted
 safetyPropsOpen = [

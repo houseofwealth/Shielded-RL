@@ -1,49 +1,26 @@
 from z3 import *
 from .utilities import *
 
-# global counters
-trueCount = int(0)
-falseCount = int(0)
-andCount = int(0)
-orCount = int(0)
-negCount = int(0)
-atomCount = int(0)
-
-def printCounts():
-    print("trueCount =", trueCount)
-    #print("falseCount =", falseCount)
-    print("andCount =", andCount)
-    print("orCount =", orCount)
-    print("negCount =", negCount)
-    print("atomCount =", atomCount)
+# this global is used to signal that cdSimplify returns a changed result
+cdSimplifyChange = Bool('cdSimplifyChange')
+cdSimplifyChange = False
 
 # prove ante:Expr => conseq:Expr
-# Return: unsat if implication holds, otw sat
-def verifyImplies(ante, conseq):  
+def verfImpl(ante, conseq):  
     s = Solver()
     s.add(ante)
     s.add(Not(conseq))
-    #print("verifying", ante, "=>", conseq)
+#    print("verifying", ante, "=>", conseq)
     result = s.check()
-    if result == sat:
-        print("***verification failed. Counterexample:", s.model())
+    if sat == result:
+        print(s.model())
     return result
 
-# prove ante:Expr <=> conseq:Expr
-# Return: True/False
-def verfEquiv(ante, conseq):  
-    result1 = verifyImplies(ante, conseq)
-    #print("VE result1", result1)
-    if result1 == unsat:
-        result2 = verifyImplies(ante, conseq)
-        return result2 == unsat
-    else:
-        return False
-
 # is ante1 /\ ante2 /\ hyp unsat?
-def noModels(ante1, ante2, hyp):  # ante1,ante2,hyp: Expression
-    # print("SN noModels:\n--", ante1, "\n--", ante2, "\n--", hyp)
+def isUnsat(ante1, ante2, hyp):  # ante1,ante2,hyp: Expression
+    #print("isUnsat:", ante1, ante2, hyp)
     chk = Solver()
+    chk.add(hyp)
     if is_and(ante1):
         #for h in ante1:
         for h in ante1.children():
@@ -51,7 +28,7 @@ def noModels(ante1, ante2, hyp):  # ante1,ante2,hyp: Expression
                 #print("ante1 h:", h)
                 chk.add(h)
     else:
-        if ante1: chk.add(ante1)
+        chk.add(ante1)
     if is_and(ante2):
         #for h in ante2:
         for h in ante2.children():
@@ -59,14 +36,8 @@ def noModels(ante1, ante2, hyp):  # ante1,ante2,hyp: Expression
                 #print("ante2 h:", h)
                 chk.add(h)
     else:
-        # print('adding ante2 to solver')
-        # chk.add(ante2)
-        for i in ante2:
-          chk.add(i)
-    # print("noModels check of ante1 /\ ante2:", chk.check())
-    # breakpoint()
-    chk.add(hyp)
-    # print('added hyp')
+        chk.add(ante2)
+    #print("isUnsat result:", chk.check())
     if unsat == chk.check(): # return (unsat == chk.check())
         return True
     return False
@@ -79,75 +50,40 @@ def remove(pool, f):
             newPool.add(g)
     return newPool        
 
-# To simplify Not(P), simplify P to r, then return Not(r)
-# Assume: is_not(expr)
-# context: List(Expr), expr:Expr
-# returns e:Goal s.t. context => (expr == e)
-def simplifyNegation(context, expr):
-    negand =  expr.children()[0]
-    # print("SN context:", context)
-    # print("SN negand:", negand)
-    simpNegand = cdSimplifyE_aux(context, negand).as_expr()
-    #print("simpNegand:", simpNegand)
-    result = simplify(Not(simpNegand), local_ctx=True) 
-    #print("simplified not:", result)
-    # double-check the result
-    #equiv = verfEquiv(And(*context,expr), And(*context,result))
-    #print("SN equiv check:", equiv)
-    return result    
-
-# Reformulate disjunction Or(P,Q) as Not(And(Not(P),Not(Q)))
-# call simplifyConjunction on And(Not(P),Not(Q)) to r, then return Not(r)
+# for each atomic disjunct d, simplify the remaining disjuncts wrt ~d
 # Assume: is_or(expr)
 # context: List(Expr), expr:Expr
 # returns e:Goal s.t. context => (expr == e)
 def simplifyDisjunction(context, expr):
-    disjuncts =  expr.children()   # List of expressions
-    # print("SD context:", context)
-    # print("SD disjuncts:", disjuncts)
-    negDisjuncts = []
-    for dis in disjuncts:
-        negDisjuncts.append(simplify(Not(dis), local_ctx=True))
-    #print("negated disjuncts", negDisjuncts)
-    simpNegDisjunction = simplifyConjunction(context, And(*negDisjuncts))
-    #print("simpNegDisjunction:", simpNegDisjunction)
-    if is_and(simpNegDisjunction):
-        simpDisjuncts = []
-        for nd in simpNegDisjunction.children():
-            simpDisjuncts.append(simplify(Not(nd), local_ctx=True))
-        result = simplify(Or(*simpDisjuncts), local_ctx=True) 
-    else:
-        result = simplify(Not(simpNegDisjunction), local_ctx=True)
-    #print("simplified disjunction:", result)
-    return result    
-        
-# Assume: is_and(expr)
-# for each conjunct c, simplify c wrt the other conjuncts.
-# context: List(Expr), expr:Expr
-# returns e:Goal s.t. context => (expr == e)
-def simplifyConjunction(context, expr):
-    #expr = varElimination(expr)
-    conjuncts =  expr.children()   # unsimplified conjuncts
-    # print("SC context:", context)
-    # print("conjuncts:", conjuncts)
-    simplifiedConjuncts = []   # local context
-    while len(conjuncts) > 0:   # for h in conjuncts:
-        c = conjuncts.pop(0)   # extract/delete first elt from the list
-        #print("context", context)
-        #print("target conjunct", c)
-        #print("new context:", context + simplifiedConjuncts + conjuncts)
-        cSimplified = cdSimplifyE_aux(context + simplifiedConjuncts + conjuncts, c).as_expr()
-        #print("cSimplified:", cSimplified)
-        simplifiedConjuncts.append(cSimplified)
-    #print("SCL result:", simplifiedConjuncts)
-    result = simplify(And(*simplifiedConjuncts), local_ctx=True) 
-    #print("simplified conjunction:", result)
-    return result
+    print("disjuncts:", expr2List(expr))
+    global cdSimplifyChange
+    changed = True
+    newExpr = expr
+    i=0
+
+    while changed:
+        print("simplifyDisjunction iteration", i)
+        changed = False
+        for d in expr2List(newExpr):  # disjuncts
+            newClause = d
+            if not is_and(d):  # d is atomic
+                print("focus on", d)
+                for e in newExpr.children():
+                    if (d.get_id() != e.get_id()):
+                        cdSimplifyChange = False
+                        e1 = cdSimplifyE_aux(context + [Not(d)], e)
+                        print(e, "->", e1)
+                        print("change?", cdSimplifyChange)
+                        changed = changed or cdSimplifyChange
+                        newClause = Or(newClause, e1.as_expr())
+        newExpr = simplify(newClause)
+        print("newExpr", newExpr, changed)
+        i = i+1
+    return newExpr
 
 # if there is an equation var=val in a conjunction, or in LHS of implication,
 # then eliminate it and replace all occurrences of var by val
-# This treats x == x1 as a left-to-right rewrite
-# TODO: use quantification over the var plus QE to achieve this
+# TODO: use quantification over the var plus QE to acheive this
 def varElimination (expr):
     if is_and(expr):
         #print("conjuncts:", expr.children())
@@ -163,82 +99,115 @@ def varElimination (expr):
         expr = simplify(And(eqs,expr))
         #print("varElim result:", expr)
     return expr
-
-
+        
 # context:List(Expr), expr:Expr
 # returns e:Goal s.t. context => (expr == e)
 def cdSimplifyE_aux(context, expr):   
-    #global trueCount, falseCount
-    #global andCount, orCount, negCount, atomCount
-    # print("SN simp Aux context before:", context)
-    context = expr2List(simplify(And(*context)))
-    # print("SN simp aux context after:", context)
     #print("cdse_aux assume:")
+    # expr2List splits both And and Or; using it here caused Or-context to be exploded
+    # into contradictory simultaneous assumptions, making isUnsat always return True -> False.
+    # Fix: only flatten if result is And; keep Or/atom as a single list entry.
+    # OLD: context = expr2List(simplify(And(*context)))
+    _ctx_simplified = simplify(And(*context))
+    context = _ctx_simplified.children() if is_and(_ctx_simplified) else [_ctx_simplified]
     #printList(context) 
-    #print("cdse_aux expr:", expr) 
+    #printList(expr2List(simplify(And(*context)))) 
+    #print("  simplify:", expr) 
+    global cdSimplifyChange
     result = Goal()
-
-    if noModels([], context, Not(expr)):
-        #print("is True")
-        #trueCount = trueCount + 1
-        #print("trueCount =",trueCount)
-        result.add(True)
+    if isUnsat([], context, expr):
+        #print(expr, "is False")
+        #print("cdSimplifyChange", cdSimplifyChange)
+        result.add(False)
+        if not expr == False: #expr.is_false():
+            cdSimplifyChange = True
+            #print("cdSimplifyChange", cdSimplifyChange)
         return result
-    
-# empirically not needed!?  see notes
-#    if noModels([], context, expr):        #
-#        print(expr, "is False")
-#        falseCount = falseCount + 1
-#        #print("falseCount =",falseCount)
-#        result.add(False)
-#        return result
+    elif isUnsat([], context, Not(expr)):
+        #print("is True")
+        #print("cdSimplifyChange", cdSimplifyChange)
+        result.add(True)
+        if not expr == True: #.is_true():
+            cdSimplifyChange = True
+            #print("cdSimplifyChange", cdSimplifyChange)
+        return result
 
-    #print("cdse_aux expr2:", expr) 
-    # double-check the result
-    #equiv = verfEquiv(And(*context,expr), And(*context,expr2))
-    #print("cd-simp1 equiv check:", equiv)
-
-    if is_not(expr):
-        simplifiedNot = simplifyNegation(context, expr)
-        #negCount = negCount + 1
-        #print("negCount =",negCount)
-        result.add(simplifiedNot)
-
+    tDisjunct = Then('simplify', 'split-clause')
+    if is_or(expr):  # disjunction
+        #print("cases:", tDisjunct(expr))
+        # Same Or-splitting bug as at entry; fix identically.
+        # OLD: contextD = simplify(And(*context,result.as_expr()))
+        _ctxD = simplify(And(*context,result.as_expr()))
+        contextD = _ctxD.children() if is_and(_ctxD) else [_ctxD]
+        cls = False
+        # simplify expr wrt context
+        for d in tDisjunct(expr):  # disjuncts
+            #print("case:", And(*d))  # d:List(Expr)
+            # OLD: d1 = cdSimplifyE_aux(expr2List(contextD), simplify(And(*d)))
+            d1 = cdSimplifyE_aux(contextD, simplify(And(*d)))
+            #print("d1:", d1)
+            cls = Or(d1.as_expr(), cls)
+        # simplify cls disjuncts relative to each other
+        result.add(simplify(cls))
+        #print("or result:", result)
     elif is_and(expr):
-        #andCount = andCount + 1
-        #print("andCount =",andCount)
-        simplifiedAnd = simplifyConjunction(context, expr)
-        result.add(simplifiedAnd)
-
-    elif is_or(expr):  # disjunction
-        #orCount = orCount + 1
-        #print("orCount =",orCount, expr)
-        simplifiedOr = simplifyDisjunction(context, expr)
-        result.add(simplifiedOr)
-
-# atomic case;  do other cases arise?
-    else:     
+        expr = varElimination(expr)
+        #print("conjuncts:", expr.children())
+        pool = Goal()   # local context
+        for h in expr.children():
+            #print(h)
+            pool.add(h)
+        oldc = True; old_res = True
+        for c in expr.children():  # conjuncts
+            #print("conjunct:", c)
+            pool = remove(pool, c)
+            if not old_res == True: pool.add(oldc)  #SN: bug fix
+            oldc = c
+            #print("pool:", pool)
+            c1 = cdSimplifyE_aux(context + goal2List(pool) + [result.as_expr()], c)
+            #print("c1:", c1.as_expr())
+            old_res = c1.as_expr()
+            result.add(old_res)
+            #print("current result", result)
+        #print("and result:", result)
+    else:     # is atomic(?);  Implies is normalized to Or
         #print("adding atom", expr)
-        #atomCount = atomCount + 1
-        #print("atomCount =",atomCount)
         result.add(expr)
 
-    #print("cdse result:", result.as_expr())
+    #print("result:", result)
     return result
 
 # expr:Expr -> return:Goal
 def cdSimplifyE(expr):   
-    #print("cdse:", expr) 
-    #expr = varElimination(expr)  too eager
-    #print("cdse varElim:", expr)
+    # print("cdse:", expr) 
+    expr = varElimination(expr)
+    # print("cdse varElim:", expr)
     result = cdSimplifyE_aux([], expr)
     #print("cdse result:", result)
     return result
         
-# return a Goal that is the conjunction of f in expr not implied by ante
-def residue(ante, expr):   # ante,expr:Expression
+# V0: return a Goal that is the conjunction of f in expr not implied by ante
+def residue0(ante, expr):   # ante,expr:Expression
     #print("find residue of", expr)
     #print("assuming",ante)
+    pool = Solver()
+    for h in expr.children():  #        print(h)
+        pool.add(h)
+    result = Goal()
+    for f in expr.children():
+        chk = Solver()
+        chk.add(Not(f))
+        chk.add(ante)
+        if chk.check() == sat:
+            result.add(f)
+        #if unsat == chk.check(): #print("eliminating",f)
+    #print("result:", result)
+    return result
+
+# return a Goal that is the conjunction of f in expr not implied by ante
+def residue(ante, expr):   # ante,expr:Expression
+    # print("Assuming", str(ante)+",")
+    # print("Find residue of", expr)
     if is_and(ante):
         result = cdSimplifyE_aux(ante.children(), expr)
     else:

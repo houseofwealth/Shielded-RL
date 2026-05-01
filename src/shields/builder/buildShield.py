@@ -1,40 +1,39 @@
-# shield synthesis for non probabilistic MDPs, for multinode models where nodes may have more than one outarc
-# NOTE
-# the way that state props and step props are handled is quite different. Although both are initially /\'d into the action def, (a) for a step prop, the action def is actually updated, for a state prop, rely on the algorithm strengthening the guard and (b) if the step prop is an implicatino it works as long as the antecedent is a subset of some action's precond, for then you update an action def p /\ q to (p /\ q) /\ (p -> s'), which nicely simplifies to p /\ q /\ s'. If you don't have p -> s' but some arbitary t -> s', then you get a wierd action def p /\ q /\ (t -> s')
-# to use, just do python shield.py
+# MR v3: 
+# - refactored
+# - handles multinode models
+# - permits both "\A e. E(). \E u. U()" and "\E u. U(). \A e. E()" forms
+# - includes explicit refinement of guard condition
+# Notes:
+# "control pred" is U
+# "guard" is the expression that determines whether an arm (action) is enabled, and is what's OR'd into the giant disjunction. It does not contain u or e because its formed by QE on "\A e. E(e). \E u. U(u,e). wcp" expr or its corresponding \E \A form. 
+# U is updated twice - 1. its strengthened by U /\ ewcp/wcp, and the 2nd time its done when the invariant gets updated to shrink it down.
+
+# python mr.py
 
 # TBD:
-# . refactor code as per new mr.py
-# . serialize out the constructed shield
-# . have a flag to choose between control sees env or control for all env
+# why is envVars and envPred on the action shouldnt it be on the node. Only example that has different env vars for different actions is EC
+
 # TODO: implement forward inference from InitProps to get an initial invariant per node
 
 from z3        import *
-# import z3
-# print(__package__)
-# print(__name__)
 from .utilities import *
 from .simplify  import *
 from .utils import *
-# from sys       import *
-# import pickle
 
-import pdb
-
-#set_param('parallel.enable', True) # slows _buildSafetyShield down!?
+#set_param('parallel.enable', True) # slows MR down!?
 # uncomment to prettyprint large expressions
 #set_option(max_args=10000, max_lines=10000, max_depth=10000, max_visited=10000)
 
 # Working Examples
+# from model_FC import *
+# from model_plan import *
+# from model_Cinderella import *
+# from model_water_tank_XX_XXX_simp import *
 # from shields.mr_models.model_gd import *
-from shields.mr_models.model_gd_dist import *
-# from ..mr_models.model_water_tank import *
-# from model_mountain_car import *
-# from z3_bug import *
+from shields.mr_models.model_gd_smart_prey import *
 
-DBG0 = True         #simple tracing info of critical steps
-DBG1 = True        #more dbg info
-
+DBG2 = True; DBG3=False
+moreWork = True  # declaring a global, used to signal that something changed in an iteration
 # TYPES
 # state,state1:List[Var]
 # subst:List[Pair(Expr,Expr)]
@@ -50,448 +49,427 @@ DBG1 = True        #more dbg info
 #tSimp = Tactic('simplify')
 t0 = Tactic('qe_rec')
 
-# extract from an action predicate the guards: conjuncts dependent only on stateVars
-def getGuard(act, stateVars):
-    #print("gg:", act, stateVars)
-    result = []
-    for c in expr2List(act['actionPred']):
-        #print("c:", c)
-        if isStatePred(c,stateVars):
-            result.append(c)
-    #print("result", result)
-    guard = And(*result)
-    guard = simplify(guard, local_ctx=True)
-    #print("guard", guard)
-    return guard
+nodes       = model.nodes
+transitions = model.transitions
+origControlPreds = {}
+for act in transitions:
+    origControlPreds[act.name] = act.controlPred
 
-def getGuard1(act):
-    return getGuard(act, act['precNode']['vars'])
+def initInvsWithSafetyProps():
+    # refine a node via state and action properties
+    for phi in safetyProps:
+        print("\nInitializing node [arc] label with state [step] property\n", phi)
+        for node in nodes:
+            # node.invariant = BoolVal(True)  # init the invariant
+            if isNodePred(phi, node, model):  # for state goals
+                #SN: i think this is conjoining and simplifying phi wrt any pre-existing inv on node
+                print(" on node", node.name)
+                inv1 = simplify(And(node.invariant, phi), local_ctx=True)
+                newStateInv = simplify(cdSimplifyE(inv1).as_expr(), local_ctx=True)
+                #print("  derived node invariant:", newStateInv)
+                delta = residue(node.invariant, newStateInv)  # print("delta:", delta)
+                #print("delta:", delta)
+                node.invariant = newStateInv
+                # print("  refined state invariant:", node.invariant)
+                print("--> strengthened node label:\n", node.invariant)
+                node.stateInvDelta = newStateInv
+            else: print(phi, "is not a node predicate for", node.name)
+        # step_invariant is a step prop that isn't equational and should not therefore be part of the calc. of the wpc, since it shouldnt be a state inv
+        for act in transitions: # for action goals
+            if isArcPred(phi, act, model):
+                print(" on transition:", act.name)
+                model.step_invariant = simplify(And(model.step_invariant, phi), local_ctx=True)
+                # print("step inv:", inv)
+                print("--> strengthened step invariant:\n", model.step_invariant)
+            elif not isNodePred(phi, node, model): 
+                print("**ERROR: property", phi, "is not a node or arc pred. Continuing with any remaining predicates")
+        # else we have a path predicate; TODO: call pn
+    # not all step props have pre and post vars (eg see model_plan) 
+    if 'stepProps' in global_props: 
+      for phi in stepProps:
+        print("\nInitializing arc label with step property\n", phi)
+        for act in transitions: # for action goals
+                print(" on transition:", act.name)
+                model.step_invariant = simplify(And(model.step_invariant, phi), local_ctx=True)
+                print("--> strengthened step invariant:\n", model.step_invariant)
 
-# assume: uConstraint has the form And(lb <= u, u <= ub)
-def getBounds(u, uConstraint):
-    result = []
-    print("u:", u, "|", uConstraint)
-    for ineq in uConstraint.children():
-        if u == ineq.children()[0]:
-            result.append(ineq.children()[1].as_long())
-            print(result)
-    if result[0] > result[1]:
-        return [result[1], result[0]]
+def mkNewGuard(act, node, wpc):
+  if hasattr(model, "DOING_FORALL_EXISTS") and model.DOING_FORALL_EXISTS:
+    #this is \A e. E(s,e) --> \E u. U(s,e,u). L(s')
+    print("\nupdating control pred..\n")
+    ctrlPred = updCtrlPred(act, node, wpc)  #U <- U & wpc
+    # ctrlPred = updGuard(act, node, wpc)
+    cwpc = wrapWithCtrl(act, ctrlPred)      #cwpc <- \E u. U
+    if DBG2: print('cwpc=', str(cwpc)) 
+    wpc = wrapWithEnv(act, node, cwpc)
+  else:
+    #this is \E u. U(s,e,u) /\ \A s'. act(s,s'). L(s')
+    ewpc = wrapWithEnv(act, node, wpc)  #this is \E u. U(s,e,u).L(s')
+    ctrlPred = updCtrlPred(act, node, ewpc)
+    if DBG2: print('ctrlPred=', str(ctrlPred)) 
+    wpc = wrapWithCtrl(act, ctrlPred)
+  print('wrapped wpc after QE and simplification = \n', str(wpc))
+
+  all_wps_4_cmpt_transs = mkWPToEnsureAnyTgtTransIsValid(act, node)
+  #SN: this is doing U_a <- U_a /\ wcp. Why am i not using it?
+  # nib1 = simplify(And(*cdSimplifyE(And(guard, wp_e))), local_ctx=True)
+  wp_x = simplify(And(*cdSimplifyE(And(wpc,all_wps_4_cmpt_transs))))
+
+  return wp_x,ctrlPred
+
+
+'''in the paper this is the L(e,u,F(s)) term. But more generally its T(s,s',e,u) --> L(s'), simplified and QEd'''
+def mkWPC(act, stateInvDeltaX): 
+    postNode = act.postNode
+    if hasattr(postNode, "tempVars"): 
+        temp_vars = postNode.tempVars
     else:
-        return result
+        temp_vars = []
+    if act.precNode == postNode:        #ie. self loop action
+        # print ('postNode[invariant]', postNode.invariant)
+        # postNodeInv = postNode.invariant
+        # # if postNode.invariant != True:
+        # if not is_true(postNode.invariant):
+        #     postNodeInv = substitute(postNode.invariant, postNode.subst)
+        # wp = Implies(act.actionPred, postNodeInv)
+        step_wpc = True
+        # if hasattr(model, "step_invariant") and not (model.step_invariant == True):
+        #   step_wpc = Implies(And(act.precNode.invariant, act.actionPred, act.strengthening), 
+        #                      model.step_invariant)
+        #   step_wpc = ForAll(postNode.postVars, step_wpc)
+        #   step_wpc = simplify(cdSimplifyE(step_wpc).as_expr(), local_ctx=True)
+        #   act.strengthening = simplify(cdSimplifyE(And(act.strengthening, step_wpc)).as_expr(), local_ctx=True)
+        #   if DBG2: print('act.strengthening\n', step_wpc)
+        if hasattr(model, "step_invariant") and not (model.step_invariant == True):
+          step_wpc = Implies(And(act.precNode.invariant, act.actionPred, model.step_invariant), 
+                             model.step_invariant)
+          step_wpc = ForAll(postNode.postVars, step_wpc)
+          step_wpc = simplify(cdSimplifyE(step_wpc).as_expr(), local_ctx=True)
+          act.strengthening = simplify(cdSimplifyE(And(act.strengthening, step_wpc)).as_expr(), local_ctx=True)
+          if DBG2: print('act.strengthening\n', step_wpc)
+        # else:
+        # wp = Implies(act.actionPred, stateInvDeltaX)
+        wp = Implies(And(act.actionPred, step_wpc), stateInvDeltaX)
+        wp = ForAll(postNode.postVars + temp_vars, wp)
+        if DBG2: print('raw wpc:\n', wp)
+        # wp = simplifyAndQE(wp)
+    else: #not using the postNode's postvars but its regular pre vars
+        postNodeInv = postNode.invariant
+        # if not is_true(postNode.invariant):
+        #     postNodeInv = substitute(postNode.invariant, postNode.subst)
+        wp = Implies(act.actionPred, postNodeInv)
+        if hasattr(model, "step_invariant") and not (model.step_invariant == True):
+        #   step_wp = ForAll(postNode.postVars, 
+        #                     Implies(act.actionPred, model.step_invariant))
+          step_wp = Implies(act.actionPred, model.step_invariant)
+          if DBG2: print('step_wpc\n', step_wp)
+          #postNode's vars includes both its pre and post vars if the effect of the action is to 
+          #change the post node's state
+          wp = ForAll(postNode.vars + temp_vars, And(wp, step_wp))
+        else:
+          wp = ForAll(postNode.vars + temp_vars, wp)
+        if DBG2: print('raw wpc:\n', wp)
+    wp = simplifyAndQE(wp)
+        #OLD: wp = ForAll(postNode.vars, Implies(act.actionPred, postNodeInv))
+    return wp
 
-# def mkCtrlCondForTransToValidTgtSt(act):    #Paper has U -> wcp + \E u. U
-#     wcp = mkCondForTransToValidTgtSt(act)
-#     if "controlVar" in act:
-#         wcp = makeExists(act['controlVar'], And(act['controlPred'], wcp))   #SN: \E u. U /\ wcp
-#         # wcp = And(act['controlPred'], wcp)  #SN: \E u. U /\ wcp           #doesnt work
-#     if DBG1: print("wcp (ensures transition to valid tgt state):\n", str(wcp))
-#     return wcp 
 
-def mkCondForTransToValidTgtSt(stateInv, act): #this is the L_n(sX) term in the paper where sX is post(act) 
-    postNode = act['postNode']
-    if True: #act['precNode'] == postNode:             #ie. self loop action
-        # print ('postNode[invariant]', postNode['invariant'])
-        postNodeInv = substitute(stateInv, postNode['subst'])
-        #temp = \A s'. A(s,s') -> L(s')
-        wcp = makeForAll(postNode['postVars'], Implies(act['actionPred'], postNodeInv))
-    else:
-        postNodeInv = postNode['invariant']
-        #postNode's vars includes both its pre and post vars if the effect of the action is to 
-        #change the post node's state
-        wcp = makeForAll(postNode['vars'], Implies(act['actionPred'], postNodeInv))
-    if 'envVar' in act and not isEmpty(act['envVar']):
-        wcp = makeForAll(act['envVar'], Implies(act['envPred'], wcp))
-    # print('wcp w/ env pred (if any) in front\n', wcp)
-    return wcp
+'''does U <- U && wpc, optimzed as res(Inv, U && wpc) unless res(Inv, U && wpc) adds nothing to U && Inv'''
+def updCtrlPred(act, node, wpc):
+  global moreWork           #letting python know moreWork below is a global
+  stateInv = node.invariant
+  # ctrlPred = getCtrlPred(model, act)
+  ctrlPred = act.controlPred
+  print('guard of', act.name, ':\n', ctrlPred)
+  newActGuard = simplify(And(ctrlPred, wpc)) 
+  if DBG2: print("new unoptimized guard:\n", newActGuard)
+  newActGuard = simplify(residue(stateInv, newActGuard).as_expr())
+  print("newActGuard (simplified residue wrt inv):\n", newActGuard)
+  # Compute difference between newActGuard and current guard to see if control pred needs updating:
+  newActGuardDelta = residue(And(ctrlPred, stateInv), newActGuard)
+  print("newActGuardDelta (residue of NewActGuard):", newActGuardDelta)
+  if(len(newActGuardDelta) > 0):  
+      act.controlPred = newActGuard
+      # ctrlPred = newActGuard
+      # ctrlPred = getCtrlPred(model, newActGuard)
+      #print("changed guard:")
+      moreWork = True
+  return act.controlPred
 
-def containsVars(expr, vs):
-    all_vars = get_vars(expr)
-    return not set(all_vars).isdisjoint(vs)
-
-def getConjNotContaining(p, vs):
-    result = []
-    for c in expr2List(p):
-        #print("c:", c)
-        if not containsVars(c,vs):
-            result.append(c)
-    #print("result", result)
-    guard = And(*result)
-    guard = simplify(guard, local_ctx=True)
-    #print("guard", guard)
-    return guard
-
-'''for multi node'''
-def updateGuardDisj(guardDisjunction, act, node):
+def updateGuardDisj(guardDisjunction, act, guard):
   #***not sure about this, need to revisit***, see comment in the paper in this section
   # the guard of the action is actually a comb of a true guard and an assumption about the env. need to remove out those assumption terms when determining how to strengthen the inv. eg a>10 /\ x=2, the true guard is just x=2
-  if 'assumpVars' in act and not isEmpty(act['assumpVars']):
-    effective_guard = getGuard(act, node['vars'] + act['assumpVars'])
-    actual_updated_guard = getConjNotContaining(effective_guard, act['assumpVars'])
-    #print('updated guard (excl. assumption):\n' + str(actual_updated_guard))
+#   if 'assumpVars' in act._fields and not isEmpty(act.assumpVars):
+  if hasattr(act, 'assumpVars') and not isEmpty(act.assumpVars):
+    # effective_guard = getGuard(act, node.vars + act.assumpVars, model)
+    # effective_guard = getGuard(act)
+    effective_guard = guard
+    #*TBD: why isn't this used?
+    actual_updated_guard = getConjNotContaining(effective_guard, act.assumpVars)
+    if DBG2: print('updated guard without assumption:\n' + str(actual_updated_guard))
   else:
-    effective_guard = getGuard(act, node['vars'])
-    # updated_guard = getGuard1(new_act_pred, node['vars']) #was effective_guard
-    #print('updated guard:\n' + str(effective_guard))
+    # effective_guard = getGuard(act)
+    effective_guard = guard
+    # updated_guard = getGuard1(new_act_pred, node.vars) #was effective_guard
   
-  effective_guard = Exists(act['controlVar'], effective_guard)
   #now use the (possibly) updated guard
-  # guardDisjunction = simplify(Or(guardDisjunction, updated_guard), local_ctx=True)
   guardDisjunction = simplify(Or(guardDisjunction, effective_guard), local_ctx=True)
-  #print("updated guardDisjunction:\n" + str(guardDisjunction))
+  # guardDisjunction = simplify(Or(guardDisjunction, guard), local_ctx=True)
+  # print("updated guardDisjunction:\n" + str(guardDisjunction))
   return guardDisjunction
 
-def updateGuardDisj(guardDisjunction, act):
-    # effective_guard = Exists(act['controlVar'], delta)
-    # existing_guard = getGuard(act, node['vars'])
-    this_one = makeExists(act['controlVar'], act['controlPred']) 
-    guardDisjunction = Or(guardDisjunction, this_one)
-    print("guardDisjunction:", guardDisjunction)
-    projectGuardG = t0(guardDisjunction)[0]
-    print("guardDisjunction after QE", projectGuardG)
-    guardDisjunction = simplify(projectGuardG.as_expr())
-    print("simplified guardDisjunction:\n", str(guardDisjunction))
-    return guardDisjunction
-  
-                    
+def mkSomeGuardHolds(node, guardDisjunction):
+  if DBG2: print("guardDisjunction:\n" + str(guardDisjunction))
+  someGuardHolds = simplifyAndQE(guardDisjunction)  # eliminate quantifiers and then simplify
+  if DBG2: print("guardDisjunction after QE and simp:\n" + str(someGuardHolds))
+  if someGuardHolds == False: 
+      response = input("No guard holds. Do you wish to continue? [y/n]")
+      assert response == 'y', "Exiting. Current someGuardHolds is " + str(someGuardHolds) 
+  return someGuardHolds
+
+# this is ensuring Inv -> someGuardHolds impl as Inv(s) := Inv(s) /\ someGuardHolds
+# but optimzed so only update if changed
+def updateInvariant(node, someGuardHolds, invDelta):
+  stateInv = node.invariant
+  # Compute difference between curr Inv and what's required for some guard true b/c new inv needs to be strong enough to establish someGuard
+  print("going to calc inv delta as residue of stateInv and someGuardHolds..")
+  newInvDeltaTemp = simplify(residue(stateInv, someGuardHolds).as_expr(), local_ctx=True)
+  #print("newInvDelta:", newInvDelta)
+  #print("verf check:", verfEquiv(newInvDelta0,newInvDelta))
+  '''only update NewInvDelta if there is a change'''
+  if newInvDeltaTemp == False: 
+      response = input("current invariant contradicts guard disjunction. Do you wish to continue? [y/n]")
+      assert response == 'y', "Invariant refinement failed. Exiting. Current Inv is " + str(stateInv)
+      newInvDelta = invDelta
+  if(newInvDeltaTemp == True):  
+      print("no change to invariant on", node.name)
+      newInvDelta = invDelta
+  else:
+      newInv = cdSimplifyE(And(stateInv, newInvDeltaTemp)).as_expr()
+      #print("Invariant refinement disallows:")
+      # print('checking invariant implication')
+      #Q: This is what used to be but why would the old inv be stronger than new one? 
+      # verifyImplies(stateInv, newInv)      
+      verfImpl(newInv, stateInv)       
+      node.invariant = newInv
+      print("new invariant=\n" +  str(node.invariant))
+      global moreWork; moreWork = True
+      newInvDelta = newInvDeltaTemp
+  return newInvDelta
+
+'''update the controlpred on each arc to account for the strenghened inv''' 
+def updateCtrlPreds(stateInv):
+    for actIndex in range(len(transitions)):
+        act = transitions[actIndex]
+        #print("simplifying guard of", act['name'])
+        ctrlPred = act.controlPred
+        #print("actGuard:", actGuard)
+        res = residue(stateInv, ctrlPred).as_expr()
+        #print("newActGuard:", newActGuard)
+        ctrlPred = simplify(And(ctrlPred, res), local_ctx=True)
+        act.controlPred = ctrlPred
+        if DBG2: print("updated control pred on action", act.name, "\n", act.controlPred)
+
+def wrapWithCtrl(act, formula):    #U has already been strengthened Paper has U -> wcp + \E u. U
+    # wpc = mkWPC(act)
+    # print("wpc (weakest precond):\n", formula)
+    f = formula
+    if hasattr(act.precNode, 'controlVars'): print("***WARNING: ignoring control vars on the node", act.precNode.name)
+    if hasattr(act, 'controlVar'): print("***WARNING: \"controlVar\" attribute is now \"controlVars\"")  
+    if hasattr(act, 'controlVars') and act.controlVars != []: 
+        # formula = updGuard(act, act.precNode, formula)
+        f = Exists(act.controlVars, formula)   #SN: \E u. U /\ wpc
+    print("ctrl wrapped formula:\n", f)
+    f = simplifyAndQE(f)
+    # if DBG2: print('ctrl wpc after simp and QE =\n' + str(wpc))
+    return f
+
+def wrapWithEnv(act, node, formula):
+  if hasattr(node, 'envVars') and not isEmpty(node.envVars):
+      formula = ForAll(node.envVars, Implies(node.envPred, formula))
+  elif hasattr(act, 'envVars') and not isEmpty(act.envVars):
+      formula = ForAll(act.envVars, Implies(act.envPred, formula))
+  else:
+      if DBG2: print("No env vars on node", node.name, "or action", act.name)
+  print("env wrapped formula:\n", formula)
+  formula = simplifyAndQE(formula)
+  return formula
+
+
+""" ---------- next 3 funs basically only used for non-synth arcs, ie. those that are triggered by the env in an Assume-Guarantee setting -------------"""
+def mkWPToEnsureAnyTgtTransIsValid(act, node):
+  all_wps_4_cmpt_transs = True
+  for a in transitions:
+    #this 'ere is checking that start node of the arc is the tgt node and that arc is a nosynth arc
+    # if ('noSynth' in act._fields and a.noSynth):
+    if hasattr(act, 'noSynth') and a.noSynth:
+      print('\n---- targetting arc', a.name)
+      tgt_act_tgt_node = a.postNode
+      wp4vti = mkWPForEnsuringTargetImplication(act, node.vars, a, tgt_act_tgt_node.vars)
+      print('wp4vti =\n',wp4vti)
+      #wp4vti is actually a list, the * turns a [] list into an argument list
+      wp4vti = simplify(And(*cdSimplifyE(wp4vti))) 
+      print('simpl wp4vti =\n',wp4vti)
+      #AND b/c you need to ensure that the arbiter action ensures the correctness of any component trans that is otherwise enabled           
+      all_wps_4_cmpt_transs = And(all_wps_4_cmpt_transs,wp4vti)
+  return all_wps_4_cmpt_transs
+
+#construct \A s'. act(s,s') -> (G(s') -> \A s''. tgt_act(s',s'') -> L(s''))
+def mkWPForEnsuringTargetImplication(act,state_vars,tgt_act,tgt_node_state_vars): 
+    tgt_implc = mkTargetImplication(tgt_act, tgt_node_state_vars)
+    if DBG2: print("tgt impl =\n"+ str(tgt_implc))
+    post_node = act.postNode
+    post_tgt_implc = substitute(tgt_implc, post_node.subst)
+    et2svi = ForAll(post_node.postVars, Implies(act.actionPred, post_tgt_implc))
+    print('CondForEnsuringTargetImplication=\n',et2svi)
+    et2svi = simplifyAndQE(et2svi)
+    return et2svi
+    
+#This is G(s) -> L(s') as opposed to strengthening the guard w/ wcp (used for non synth edges)
+def mkTargetImplication(act,state_vars): 
+    wcp = mkWPC(act)
+    wcp = simplifyAndQE(wcp)
+    guard = getGuard(act, state_vars, model)
+    impl = Implies(guard,wcp)
+    impl = simplify(impl)
+    return impl
+
+#--------------------------- main --------------------------------------
+# moved to top of file: moreWork = True  #declaring a global
 # model refinement solver - for multinode models where nodes may have more than one outarc
 # TODO:  initially, simplify each transition wrt the state invariant
-def buildSafetyShield():
-    print("Building shield for", model['name'])
-    nodes    = model['nodes']
-    transitions = model['transitions']
+def buildSafetyShield(): #(model, initProps, safetyProps):
+    print("Refining Model", model.name)
 
     # initial state Properties: what should this do? SN: initialState is unused
     # initialState = True
     # for initProp in initProps:
+    #     print("Localizing initial state with initial state property:", initProp)
     #     f0 = simplify(And(initialState,initProp), local_ctx=True)   #print(f0)
     #     initialState = cdSimplifyE(f0).as_expr()
+    # #printState(initialState)
 
-    # refine a node via state and action properties
-    if DBG0: print('initializing node labels and arc labels with given safety properties..')
-    stateInv = singleton['invariant']
-    for phi in safetyProps:
-        # Need to do sth like [any node in ..] if DBG1 and isNodePred(phi, node): print("\nInitializing node labels with state property:\n", phi)
-        if len(nodes) > 1: print('***ERROR: Assuming all nodes have same stateInv')
-        for node in nodes:
-            if isNodePred(phi, node):  # for state goals
-                #SN: this is conjoining and simplifying phi wrt any pre-existing inv on node
-                inv1 = simplify(And(stateInv, phi), local_ctx=True)
-                newStateInv = simplify(cdSimplifyE(inv1).as_expr(), local_ctx=True)
-                #print("  derived node invariant:", newStateInv)
-                delta = residue(stateInv, newStateInv)  # print("delta:", delta)
-                # node['invariant'] = newStateInv
-                stateInv = newStateInv
-                if DBG1:
-                    if (len(delta) > 0):
-                        print("- strengthened node label on node", node['name'],"to\n", str(stateInv))
-                    else:
-                        print("- no change on node", node['name'])
+    initInvsWithSafetyProps()
 
-        # if DBG1 and not isNodePred(phi, node): print("\nInitializing arc labels with transition property:\n", phi)
-        for act in transitions: # for action goals
-            #g = getGuard(act, act['precNode']['vars'])
-            if isArcPred(phi, act):
-                #print("to transition:", act['name'])
-                inv0 = And(act['actionPred'], phi)
-                # print('inv0', inv0)
-                inv_simp = simplify(inv0, local_ctx=True)             
-                newActPred = simplify(cdSimplifyE(inv_simp).as_expr(), local_ctx=True)
-                # print('newActPred', newActPred)
-                delta = residue(act['actionPred'], newActPred)
-                act['actionPred'] = newActPred
-                if DBG1:
-                    if (len(delta) > 0):
-                        print("- strengthened arc label on", act["name"], "with", phi, "to:\n", newActPred)
-                    else:
-                        print("- no change to arc", act["name"])
-        # else we have a path predicate; TODO: call pn
-    print('..done')
-
-# fixpoint iteration loop
-    moreWork = Bool('moreWork')
-    moreWork = True
+    # fixpoint iteration loop
     iterCnt = 0
-
-    # loop invariant: 
+    global moreWork
     while (moreWork and iterCnt <= 50):
         moreWork = False
-        if DBG0: print("\n----------------\niteration", iterCnt)
-        # print("Current Model")
-        # printModel(model)
+        print("\n----------------\niteration", iterCnt)
+        print("Current Model")
+        printModel(model)
         iterCnt = iterCnt + 1
 
         # refine each node invariant wrt its out-arcs and post-state prop
         for node in nodes:  
-            if DBG1: print("\n-- Refining the state invariant for node", node['name'])
-            # stateInv = node['invariant']
+            print("\n------- Refining the state invariant for node", node.name)
+            # state_inv = node['invariant']
             guardDisjunction = False
             node_has_an_outgoing_arc = False
             for act in transitions:
-                '''this 'ere is checking that start node of the arc is the current node'''
-                if act['precNode']['name'] == node['name']:
-                    node_has_an_outgoing_arc = True
-                    if DBG1: print('--- arc:', act['name'])
-                    # was guard = getGuard(act, node['vars'])
-                    if not 'envVar' in node or isEmpty(node['envVar']):
-                        guard = getGuard(act, node['vars'])
-                    else:
-                        guard = getGuard(act, node['vars'] + node['envVar'])
-                    # INCORRECT wcp = mkCtrlCondForTransToValidTgtSt(act)        #this is E u. U /\ \A e. E(e) -> L_n(s'/vals)
-                    wcp = mkCondForTransToValidTgtSt(stateInv, act)
-                    print('wcp = \n', wcp)
-                    wcp_simp = simplify(wcp)
-                    print('wcp_simp = \n', wcp_simp)
-                    # eliminate quantifiers and then simplify
-                    wcp_qe = t0(wcp_simp)[0].as_expr()  # returns Goal: list of conjuncts
-                    # looks like its not needed: wcp_qe = simplify(wcp_qe.as_expr())
-                    if DBG1: print('wcp_simp after QE (wcp_qe) =\n' + str(wcp_qe))
-                    # may not be making any difference: wcp_e = cdSimplifyE(wcp_e).as_expr()
-                    newCtrlPred = simplify(And(act['controlPred'], wcp_qe)) #U_a <- U_a /\ wcp
-                    print('strengthened ctrl pred\n' + str(newCtrlPred))
-                    # '''Q: what dis? A: its doing preState(a) <- preState(a) /\ wcp ie U_a <- U_a /\ wcp
-                    # nib1 = simplify(And(*cdSimplifyE(And(guard, stateInv))), local_ctx=True)
-
-                    #ie if there's anything not implied by stateInv, that strengthens ctl pred
-                    #but first does residue over Inv then residue over Inv /\ ctr pred, first seems redundant
-                    ncp_resid_over_stateInv = residue(stateInv, newCtrlPred)
-                    ncp_resid_over_stateInv = simplify(ncp_resid_over_stateInv.as_expr(), local_ctx=True)
-                    controlPredDelta = residue(And(act['controlPred'], stateInv), ncp_resid_over_stateInv)
-                    # if not(ncp_resid_over_stateInv == True):
-                    if len(controlPredDelta) > 0:
-                        act['controlPred'] = ncp_resid_over_stateInv
-                        if DBG1: print("new ctrl Pred (residue of ctrlPred over Inv) for", act['name'], ":\n" + str(act['controlPred']))
-                        moreWork = True
-                    # guardDisjunction = updateGuardDisj(guardDisjunction, act, node)
-                    guardDisjunction = updateGuardDisj(guardDisjunction, act)
-            if node_has_an_outgoing_arc:
-                if DBG1: print('\n- Completed arcs from node ' + node['name'] + '. Now checking if invariant needs updating (control preds may also get updated again)')
-                # this is L_m -> someGuardTrue impl as L_m(s) := L_m(s) /\ someGuardTrue but optimzed so only update if changed
-                print('stateInv\n', stateInv)
-                newInvDelta = residue(stateInv, guardDisjunction)
-                print("newInvDelta:\n", newInvDelta)
-                #print("verf check:", verfEquiv(newInvDelta0,newInvDelta))
-                # if(newInvDelta == True):  
-                if(len(newInvDelta) == 0):  
-                    if DBG1: print("no change to invariant on", node['name'])
+                node_has_an_outgoing_arc = True
+                stateInv = node.invariant
+                if act.precNode == act.postNode: #otherwise stateInvDelta is not used
+                    stateInvDeltaX = substitute(node.stateInvDelta, node.subst)
                 else:
-                    newInv = cdSimplifyE(And(stateInv, *newInvDelta)).as_expr()
-                    # doesnt look right, why would old inv be stronger than new one?:    verifyImplies(stateInv, newInv)      
-                    verifyImplies(newInv, stateInv)    
-                    stateInv = newInv
-                    if stateInv == False:
-                        print('***FAILED: unable to compute invariant, all transitions blocked')
-                        break
-                    # node['invariant'] = newInv
-                    if DBG1: print("new invariant\n", stateInv)
-                    moreWork = True
-                    '''now update each controlPred since the inv changed'''
-                    for actIndex in range(len(transitions)):
-                      act = transitions[actIndex]                    
-                      diff_ctrlPred_vs_newStateInv = residue(stateInv, act['controlPred']).as_expr()
-                      print("new ctrl Pred (diff b/w updated state inv and current ctrl pred):\n", diff_ctrlPred_vs_newStateInv)
-                      act['controlPred'] = diff_ctrlPred_vs_newStateInv
-            else: 
-               if DBG1: print('No refinement. Node is terminal')
-        if stateInv == False :
-          break
-    if moreWork == False:
+                    stateInvDeltaX = None
+                if act.precNode.name == node.name: #and 
+                  print('\n--- Arc', act.name)
+                  #have to do it this way, using "implies" fn causes python to evaluate both args first
+                  if not hasattr(act, 'noSynth') or not act.noSynth:
+                      wpc = mkWPC(act, stateInvDeltaX)
+                      print('wpc:\n' + str(wpc))
+                      guard,ctrlPred = mkNewGuard(act, node, wpc)
+                      if DBG2: print('guard:\n' + str(guard))
+                      # if DBG2: print('guard:\n', getGuard(act))
+                  #this needed to update the invariant, next
+                  guardDisjunction = updateGuardDisj(guardDisjunction, act, guard)
+                  print("updated guardDisjunction:\n" + str(guardDisjunction))
+            if node_has_an_outgoing_arc:
+                print('\n----- Completed arcs from node ' + node.name + '. Now checking if invariant and guards needs updating')
+                someGuardHolds = mkSomeGuardHolds(node, guardDisjunction)
+                node.stateInvDelta = updateInvariant(node, someGuardHolds, node.stateInvDelta)
+                #update the ctrl preds a 2nd time on each of the arcs by forming residue wrt to new invar
+                # updateGuards(node.invariant)
+                updateCtrlPreds(node.invariant)
+            else: print('No refinement. Node is terminal')  #Q: when would this occur?
+
+    if not moreWork:
         print("\n----------------\nFinal Model - fixpoint at iteration", iterCnt)
     else:
-        print("\n****************\n**Terminated! after iteration", iterCnt)
+        print("\n****************\nWarning: Non-fixpoint Model - after iteration", iterCnt)
     printModel(model)
-    print("..safety shield construction complete")
-# --------------------------- end shield def ----------------------------------
 
-#     folder_name = '/??'   
-#     fname = folder_name + "model_1pt"
-#     if DBG0: print('Serializing model to', fname)
-#     ser_model = serialize(model, fname)
-#     unser_model = unSerialize(ser_model)
-#     if DBG1: printModel(unser_model)
 
-# def serialize(model,fname):
-#     with open(fname, "wb") as f:
-#       pickle.dump(model, f)
-#       unser_model = pickle.load(f)
+# This generator assume that the model is a fixpoint (so the invariants are inductive).
+def generateControlStrategyByCases(model):
+    print("Generating Control Strategy by Cases")
+    codeFile = open(model.name + "controlFun.py", "w")
+    for act in model.transitions:
+        if is_and(origControlPreds[act.name]) and act.controlVars != []:
+            codeFile.write("def controlFn(")
+            needSep = False
+            for param in act.precNode.vars:
+                if needSep == True:
+                    codeFile.write(",")
+                else: needSep = True
+                codeFile.write(str(param))
+            codeFile.write("):\n\t")
+            print("act", act.name, "has original bounds on controlPred of", origControlPreds[act.name])
+            # preStateInv = act.precNode.invariant
 
-def buildBLShield():
-    BOUND = 3
-    print('---------------------------------------------------\n')
-    print("Computing bounded reachability for", model['name'], "to a bound of", BOUND)
-    # moreWork = Bool('moreWork')
-    transitions = model['transitions']
-    # stateInv = singleton['invariant']
-    variant = boundedReachabilityProp
-    t0 = Tactic('qe_rec')
+            bounds = getBounds(act.controlVars, origControlPreds[act.name])
+            # bounds = [0,4]; print("***ASSUMING FIXED BOUND!!")
+            if bounds == None:
+                break
+            print("bounds:", bounds)
+            # wcps = t0(makeWeakestControllablePredecessor(act))[0].as_expr()
+            # print("wcps:", wcps)
+            # NodeInv = act.precNode.invariant
+            # print("NodeInv",NodeInv)
+            for uval in range(bounds[0], bounds[1]):
+                #print("uval", uval, is_int(uval), is_int(IntVal(uval)))
+                uCase = act.controlVars[0] == IntVal(uval)
+                print("uCase", uCase)
+                envelope = substitute(act.controlPred, (act.controlVars[0], IntVal(uval)))
+                envelope = simplify(envelope, local_ctx=True)
+                print("envelope", envelope)
+                codeFile.write("if ") 
+                codeFile.write(str(envelope)) #.to_string())
+                codeFile.write(":\n") 
+                codeFile.write("\t\treturn " + str(IntVal(uval)) + "\n")
+                codeFile.write("\telse ")
+            codeFile.write("return " + str(bounds[1]) + "\n")
+    codeFile.close()
 
-    if not(variant == True): 
-        variantX = substitute(variant, subst)
+
+
+# assume: uConstraint has the form And(lb <= u, u <= ub) UNUSED
+def getBounds(us, uConstraint):
+    result = []
+    # assert len(us) == 1, "getBounds currently expects a single control variable"
+    if len(us) != 1:
+        print("***getBounds currently expects a single control variable. Not generating a control function for this action")
+        return None
+    u = us[0]
+    # print("u:", u, "|", uConstraint)
+    # assert is_int(u), "u must be an integer"
+    if not is_int(u): 
+        print("***u must be an integer. Not generating control function for this action")
+        return None
+    for ineq in uConstraint.children():
+        if u == ineq.children()[0]:
+            result.append(ineq.children()[1].as_long())
+            # print(result)
+    if result[0] > result[1]:
+        return [result[1], result[0]]   #flip the bounds
     else:
-        variantX = variant #was singleton['variant']
+        return result
 
-    # fixpoint iteration loop
-    moreWork = True
-    iterCnt = 0
-
-    while iterCnt <= BOUND: 
-        moreWork = False
-        iterCnt = iterCnt + 1
-        if DBG0: print("\n----------------\niteration", iterCnt)
-
-        """ refine an arc's guard wrt its post-node ariant """
-        # stateInvX = substitute(stateInv, subst)
-        for actIndex in range(len(transitions)):
-            act = transitions[actIndex]
-            if DBG1: print("\nRefining guard on transition:", act['name'])
-            print("variantX:\n", variantX)
-            wcTrans = ForAll(stateX, Implies(act['actionPred'], variantX))
-
-            if 'envVar' in act and not isEmpty(act['envVar']) and len(act['envVar']) > 0:
-                wcTrans= ForAll(act['envVar'], Implies(act['envPred'], wcTrans))
-            print("wcp:\n", wcTrans)
-            wcTrans_simp = simplify(wcTrans)
-            if DBG1: print('wcp_simp = \n', wcTrans_simp)
-            # eliminate quantifiers and then simplify
-            qewcTransG = t0(wcTrans_simp)[0]  # returns Goal: list of conjuncts
-            newActGuard = qewcTransG.as_expr()
-            # newActGuard = simplify(Or(at_tgt, qewcTransG.as_expr())) WRONG!!!!!!!!
-            if DBG1: print("guard (newActGuard):\n", newActGuard)
-            #SN: this residue is diff newActGuard - invariant
-            newActGuard = simplify(residue(variant, newActGuard).as_expr())
-            print("newActGuard - variant:\n", newActGuard)
-
-            if iterCnt <= BOUND:  
-                # transitions[actIndex]['controlPred'] = newActGuard
-                act['blPred'] = newActGuard
-                # blprop = newActGuard
-            elif DBG1: print("no change to blPred")
-
-        """ refine a node invariant wrt its out-arcs to establish someGuard, and poss update guard""" 
-        #print("\nRefining the state invariant")
-        guardDisjunction = False
-        for actIndex in range(len(transitions)):
-            act = transitions[actIndex]
-            localGuard = act['blPred'] 
-            #print("guard for transition", act['name'], ":", localGuard)
-            if len(act['controlVar']) > 0:
-                localGuard = Exists(act['controlVar'], And(act['controlPred'], localGuard))
-            guardDisjunction = Or(guardDisjunction, localGuard)
-        
-        print("\nguardDisjunction:\n", guardDisjunction)
-        projectGuardG = t0(guardDisjunction)[0]
-        #print("projectGuardG", projectGuardG)
-        guardDisjunction = simplify(projectGuardG.as_expr())
-        print("guardDisjunction after QE and simpl:\n", guardDisjunction)
-        variant = guardDisjunction
-        variantX = substitute(variant, subst)
-        print("variantX:\n", variantX)
-        moreWork = True
-
-        """now simplify each transition's guard wrt the new state variant"""
-        for actIndex in range(len(transitions)):
-            act = transitions[actIndex]
-            # was actGuard = act['controlPred']
-            act['blPred'] = residue(variant, act['blPred']).as_expr()
-            print("new blPred after updating state v:\n", act['blPred'])
-
-    print("\n----------------\nTerminated after iteration", iterCnt)
-    # printModel(model) #state, stateInv, transitions)
-    print('  blPred:\n', action['blPred'])
-    print('variant:\n', variant)
-    
-# invoke model refinement on the model
-# mr(state, stateX, subst, singleton['variant'], initProps, transitions, safetyProps)
-# buildBLShield()
-MAX_COUNT = 2
-count = 0
-def goalReached():
-    global count
-    if count <= MAX_COUNT: 
-        count = count+1
-        return False
-    else: return True
-
-def getNextAction(was_bad):
-  # return [(a_x,randrange(10)), (a_y,randrange(10))] 
-  return [float(randrange(-5,5)), float(randrange(-5,5))]
-#   return np.array([float(randrange(10)), float(randrange(10))])
-# -----------------------------------------------------------------------------
-
-solver = Solver()
-
-
-# def getZ3Var(index):
-#   return action['controlVar'][index]
-
-def mkSubstForCtrl(replacement_terms):
-#   return list(zip(action['envVar'], list(map(toZ3Type, agent_action)))) #[(v,val) for (v,val) in zip(singleton['envVar'],agent_action_values)]
-  return list(zip(action['controlVar'], replacement_terms)) 
-
-def mkSubstForState(replacement_terms):
-  return list(zip(state, replacement_terms))  #state is actually a list of Z3 structs repr. state vars
-
-def postVarToPreVar(var_n_val):                             #eg (xX,6)
-  var_as_expr = Real(var_n_val[0].name())                   #b/c xX is a FunctionRef!
-  return (substitute(var_as_expr, inv_subst),var_n_val[1])  #eg (x,6)
-
-
-#This just tests if the proposed action leads to safe immediate state, no guarantees about beyond..
-#For model_1pt, faster to use the XXXOkPy tests in model_1pt
-#***This code may not be correct? OK tests for the fitness of the action before taking the step
-#eg ok([6,7],[0,10]) corresp to [(a_x,6), (a_y,7)][(x,0), (y,10), etc]
-def ok(agent_action, curr_st):  
-    new_st = updateState(agent_action, curr_st)           #--> [8.5, 3, 1.1, 2.3, etc]
-    new_val_subst = mkSubstForState(new_st)               #--> [(x,8.5), (y,3), (vx,?), etc]
-    for prop in safetyProps:
-        instantiated_safetyProp = substitute(prop, new_val_subst) #eg L <= 8.5
-        solver.reset()
-        solver.add(instantiated_safetyProp)
-        res = solver.check() 
-        if res!=z3.sat:
-        #     print('**action', agent_action, ' in state', curr_st, ' will cause violation of safety prop:',instantiated_safetyProp)
-            return False
-    return True 
-
-def updateState(agent_action, curr_st):
-  value_subst = \
-    mkSubstForCtrl(agent_action) + mkSubstForState(curr_st)  #[(a_x,6), (a_y,0)] + [(x,10), etc]
-#   print('value_subst=', value_subst)
-  inst_action = substitute(action['actionPred'], value_subst) # --> 10 + 3 + 3 >= 0 
-  # if DBG1: print('instantiated_action=\n',inst_action)
-  solver.reset()
-  solver.add(inst_action)
-  solver.check()                                        #here check just being used to simplfy exprs
-  m = solver.model()                                    #[a_xX=5, a_yX=6, xX=6, yX=12, etc]
-  post_st = [m[var] for var in stateX]                  #[5, 6, 6, etc]
-  # print('post_st = ', post_st)
-  return post_st                                        #return (post_st,post_node) when we have multiple nodes
-  
-MAX_STEPS = 3
-def runShield():
-  print('\n-----------Running shield')
-  # curr_st = [(x,5), (y,1), (v_x,0), (v_y,0)]            #python vars referencing z3 s
-  curr_st = [5.0, 0.0, 0.0, 0.0]
-  curr_st = list(map(toZ3Type, curr_st))
-  print('initial state = (x,y,v_x,v_y)', curr_st) 
-
-  # prey_action = [1.0, 0.0]                              #prey moves with constant speed
-#   while not goalReached():
-  for remaining_steps in range(MAX_STEPS,1,-1):
-    agent_action = getNextAction(False)
-    agent_action = list(map(toZ3Type, agent_action))
-    print('\ngot next RL action ',agent_action)
-    while not (ok(agent_action, curr_st, safetyProps)):
-    # while not (ok2(np.array(agent_action), np.array(curr_st),
-    #                np.array(prey_action), np.array(curr_st), 
-    #                remaining_steps)):
-      print('current agent_action leads to bad state. Requesting new action')
-      agent_action = getNextAction(True)
-      agent_action = list(map(toZ3Type, agent_action))
-    # print('skipped updating state') 
-    new_st = updateState(agent_action, curr_st)            #--> [(x,6), (y,12), etc]
-    curr_st = new_st
-    # remaining_steps = remaining_steps - 1
+# choose a control strategy generator
+#controlStrategy = generateControlStrategyBySMT(model)
+# controlStrategy = generateControlStrategyByCases(model)
 
 
 if __name__ == '__main__':
@@ -500,61 +478,3 @@ if __name__ == '__main__':
     # buildBLShield()
     buildSafetyShield()
 #   runShield()  
-
-
-
-
-
-
-
-
-'''
--------------------------------- Graveyard --------------------------------------------------
-        #This was trying to strengthen the old variant  with the diff between old inv and the guardDij but inlike the ivnariant, the variant isn't monotonilcally stronger
-
-        # stateInv = cdSimplifyE(stateInv).as_expr()
-        #TBD this may be a no op in which case remove it
-        # print("guardDisjunction/stateInv after CD simpligfy:\n", guardDisjunction)
-        # stateInvDeltaX = substitute(stateInv, subst)
-        # I think this is correct b/c surely the variant is reqd to establish the guard
-        # variantDelta = residue(variant, guardDisjunction) # returns Goal list
-        # print("guard disjunction - variant:", variantDelta)
-        # if(len(variantDelta) > 0):  # have a refined state variant
-        #     variant = cdSimplifyE(simplify(And(variant, *variantDelta))).as_expr()
-        #     print("new State variant:\n", variant)
-        #     #not used until the next iteration but need to do this here
-        #     variantDeltaX = substitute(And(*variantDelta), subst)
-        #     print("variantDeltaX:\n", variantDeltaX)
-        #     # stateInvDeltaX = substitute(Or(at_tgt, And(*invariantDelta)), subst)
-        #     # print("weakened stateInvDeltaX:\n", stateInvDeltaX)
-        #     moreWork = True
-        # # elif DBG1: print('state variant unchanged')
-        # else:
-        #   if  DBG1: print('state variant unchanged')
-
-#*TBD : this should be testing the invariant, not the guard
-def solutionExists(curr_st):
-  guard = getGuard(action, 
-                   action['precNode']['vars'] + action['controlVar'])   
-  value_subst = \
-    mkSubstForState(curr_st)  #[(a_x,6), (a_y,0)] + [(x,10), etc]
-  instantiated_guard = substitute(guard, value_subst) # --> 10 + 3 + 3 >= 0 
-  # print('instantiated_guard=\n',instantiated_guard); sys.stdout.flush() 
-  solver.reset()
-  solver.add(instantiated_guard)
-  res = solver.check() 
-  return res==z3.sat  
- 
-def boundedReachabilitySolutionExists(curr_st):
-  value_subst = \
-    mkSubstForState(curr_st)  #[(a_x,6), (a_y,0)] + [(x,10), etc]
-  instantiated_variant = substitute(singleton['blprop'], value_subst) # --> 10 + 3 + 3 >= 0 
-  # print('instantiated_guard=\n',instantiated_guard); sys.stdout.flush() 
-  solver.reset()
-  solver.add(instantiated_variant)
-  res = solver.check() 
-  return res==z3.sat  
-
-
--------------------------- graveyard ------------------------------------------------
-'''

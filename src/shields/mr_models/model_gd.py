@@ -1,5 +1,6 @@
 #See note below about KILL_RADIUS how its used here
 from z3       import *
+from types    import SimpleNamespace
 from config_gd import DEFAULT_CONFIG
 # from ipdb import set_trace
 
@@ -65,7 +66,7 @@ else:   zstate = []
 if _3D: zXstate = [zX, v_zX] 
 else:   zXstate = []
 
-globals     = []
+global_props     = [] #  globals() is used by Python
 state       = [x, y, v_x, v_y, t, deadline] + zstate #,a_x,a_y]     #not a list of the vars but a list of the corresp Z3 structs!
 stateX      = [xX,yX,v_xX,v_yX,tX,deadlineX] + zXstate
 subst       = list(zip(state,stateX)) 
@@ -81,13 +82,14 @@ e,u = Ints('e u')
 boundedReachabilityProp = And(-KILL_RADIUS <= x - prey_x, x - prey_x <= KILL_RADIUS, 
                               -KILL_RADIUS <= y - prey_y, y - prey_y <= KILL_RADIUS)
 # Nodes
-singleton  = {'name'         : 'main',
-              'globals'      : globals,
-              'vars'         : state,
-              'postVars'     : stateX,    # optional: for self transitions
-              'subst'        : subst,     # optional: for self transitions
-              'invariant'    : t >= 0     # was True
-              }
+singleton  = SimpleNamespace(
+              name         = 'main',
+              vars         = state,
+              postVars     = stateX,    # optional: for self transitions
+              subst        = subst,     # optional: for self transitions
+              invariant    = t >= 0,     # was True
+              stateInvDelta = True,   # initialised; updated by initInvsWithSafetyProps
+              )
 
 def delta_v(a):
   global DELTA_T
@@ -110,31 +112,33 @@ else:
 
 # Arcs/Transitions 
 #only one action corresponding to a choice made by the RL agent
-action = {'name'       : "accelerate",
-          'actionPred' : And(xX == x+delta_s(v_x,a_x), 
+action = SimpleNamespace(
+          name        = "accelerate",
+          actionPred  = And(xX == x+delta_s(v_x,a_x), 
                              v_xX == v_x+delta_v(a_x), 
                              yX == y+delta_s(v_y,a_y), v_yX == v_y+delta_v(a_y),
                              zMove, zMovev,
                              tX == t+1),
           # why is env var and pred on an action and not a node?
-          'envVar'      : [],
-          'controlVar' : [a_x,a_y] + zCtrl,
-          'controlPred': And(A_MIN<=a_x, a_x<=A_MAX, 
+          envVars     = [],
+          envPred     = True,
+          controlVars = [a_x,a_y] + zCtrl,
+          controlPred = And(A_MIN<=a_x, a_x<=A_MAX, 
                              A_MIN<=a_y, a_y<=A_MAX,
                              zAccMin, zAccMax),
-          'blPred'       : boundedReachabilityProp, #And(x==R-1, y==B+1)
-          # 'assumption' : True,
-          # 'assumpVars' : [a_x,a_y],
-          'precNode'   : singleton,
-          'postNode'   : singleton
-          }
+          blPred      = boundedReachabilityProp, #And(x==R-1, y==B+1)
+          precNode    = singleton,
+          postNode    = singleton
+          )
 transitions = [action]
 
-model       = {'name'        : '1 point predator, 2-D',
-               'initNode'    : singleton,
-               'nodes'       : [singleton],
-               'transitions' : transitions
-               }
+model = SimpleNamespace(
+    name        = '1 point predator, 2-D',
+    initNode    = singleton,
+    nodes       = [singleton],
+    transitions = transitions,
+    DOING_FORALL_EXISTS = True,                 #should this just be a global?
+    )
 
 # Required Properties
 initProps   = [deadline==0, t==0]
