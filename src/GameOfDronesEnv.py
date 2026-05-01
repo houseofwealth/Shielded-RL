@@ -33,6 +33,7 @@ class GameOfDronesEnv(Env):
         self.hitGeoFenceOrObs = False
         self.n_hit_geofence_or_obs = 0
         self.n_sep_violations = 0
+        self.n_track_violations = 0
         self.n_pred_collisions = 0
         self.n_prey_caught = 0
         self.n_tot_rew = 0
@@ -110,8 +111,12 @@ class GameOfDronesEnv(Env):
             #             p1.position = p1.position.copy()
             #             p1.position[d] += sign * (self.MIN_SEP - abs(diff[d]))
 
-        #prey has no acceleration!
-        self.prey.move(0, self.STEP_SIZE)   #prey moves w/ constant velocity
+        # prey moves: constant velocity normally; adversarial random acceleration when TRACKING_PREY
+        if self.TRACKING_PREY:
+            prey_acc = np.random.uniform(-self.A_PREY_MAX, self.A_PREY_MAX, self.num_dims)
+        else:
+            prey_acc = 0
+        self.prey.move(prey_acc, self.STEP_SIZE)
         self.prey.clipPosToWSBoundary()
 
         obs, task_failed = self.__getObservation()
@@ -155,6 +160,7 @@ class GameOfDronesEnv(Env):
         print(f'Truncated (timeout):  {self.n_truncated}')
         print(f'Geofence/obs hits:    {self.n_hit_geofence_or_obs}')
         print(f'MIN_SEP violations:   {self.n_sep_violations}')
+        print(f'Track violations:     {self.n_track_violations}')
         print(f'Pred-pred collisions: {self.n_pred_collisions}')
         print(f'Bound exceeded:       {self.n_bound_exceeded}')
 
@@ -187,10 +193,10 @@ class GameOfDronesEnv(Env):
 
 
     def __initPredPoszAndVels(self):
-        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True; preds_violate_sep = True
-        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs or preds_violate_sep:
+        preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True; preds_violate_sep = True; preds_violate_track = True
+        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs or preds_violate_sep or preds_violate_track:
             #reset all the flags at the start of each iteration in case a flag gets unset but another remains true in a given iteration
-            preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True; preds_violate_sep = True
+            preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True; preds_violate_sep = True; preds_violate_track = True
             positions = self.pred_posz_space.sample()  # produces for say a 2 pred 3d space a 6 element vector [-2, 8, -1, 4, -3, 10]
             for pred_num, predator in enumerate(self.predators):
                 start = pred_num * self.num_dims
@@ -214,6 +220,8 @@ class GameOfDronesEnv(Env):
                 pred_landed_in_obs = False
             if not self.__predsViolateSep():
                 preds_violate_sep = False
+            if not self.__anyPredViolatesTrack():
+                preds_violate_track = False
 
     def __mkSpaces(self):
         total_num_preds = self.num_preds #+ self.num_fake_preds
@@ -277,6 +285,11 @@ class GameOfDronesEnv(Env):
             self.n_sep_violations += 1
             if self.n_sep_violations % 1 == 0:
                 print('# times preds violated MIN_SEP', self.n_sep_violations)
+        if not task_failed and self.__anyPredViolatesTrack():
+            task_failed = True
+            self.n_track_violations += 1
+            if self.n_track_violations % 100 == 0:
+                print('# times pred violated MAX_TRACK_DIST', self.n_track_violations)
 
         pred_posz = np.concatenate([predator.position for predator in self.predators])
         pred_velocities = np.concatenate([predator.velocity for predator in self.predators])
@@ -370,6 +383,20 @@ class GameOfDronesEnv(Env):
     '''OTOH, if any pred hit geofence or obstacle, its game over'''
     def __APredHitGeoFenceOrObs(self):
       return any(predator.hitGeoFence() or predator.hitObs() for predator in self.predators)
+
+    '''When TRACKING_PREY is on, check if any live pred has drifted beyond MAX_TRACK_DIST from the prey (L-inf)'''
+    def __anyPredViolatesTrack(self):
+        assert self.MIN_TRACK_DIST == -1, \
+            'MIN_TRACK_DIST > 0 not supported: post-clip repair for pred-prey min separation not implemented'
+        if not self.TRACKING_PREY or self.MAX_TRACK_DIST <= 0:
+            return False
+        for p in self.predators:
+            if not p.is_live:
+                continue
+            diff = p.position - self.prey.position
+            if np.max(np.abs(diff)) > self.MAX_TRACK_DIST:
+                return True
+        return False
 
     '''When DOING_SEP is on, check if any pair of live preds violate MIN_SEP (L-inf distance < MIN_SEP)'''
     def __predsViolateSep(self):

@@ -5,6 +5,7 @@ from stable_baselines3.common.utils import obs_as_tensor
 from .ActionSelector import ActionSelector
 from .shields.mr_models.model_gd import OK, solnExists
 from .shields.mr_models.model_gd_dist import OKDist
+from .shields.mr_models.model_gd_smart_prey import OKTrack, solnExistsTrack
 from .shields.builder.utils import *
 
 
@@ -35,7 +36,7 @@ class DronesActionSelector(ActionSelector):
             (action_per_pred, value, log_prob_per_action) = \
                 self.getRandomAction(single_obs) 
             is_random_action = True
-            print('had to pick rand action', action_per_pred)
+            # print('had to pick rand action', action_per_pred)
                 # self.getRandomAction(deepcopy(single_obs)) #TBD: remove this 2nd deep copy?
 
         assert len(action_per_pred) == self.env.num_preds * self.env.num_dims, 'action is wrong size!'
@@ -121,6 +122,10 @@ class DronesActionSelector(ActionSelector):
             se = solnExists(current_state, prey_st, self.env.STEPS_BOUND)
             if se: print(f'solnExists pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
             else: print(f'***WARNING: no solution from pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
+            if self.env.TRACKING_PREY:
+              se_t = solnExistsTrack(current_state, prey_st)
+              if se_t: print(f'solnExistsTrack pred {pred_idx}', current_state, prey_st)
+              else: print(f'***WARNING: no tracking soln from pred {pred_idx}', current_state, prey_st)
 
         steps_remaining = self.env.STEPS_BOUND - self.env.n_steps_to_bound
 
@@ -155,6 +160,14 @@ class DronesActionSelector(ActionSelector):
                             all_ok = False
                             break
                     if not all_ok:
+                        break
+
+            # Per-pred tracking check against adversarial prey
+            if all_ok and self.env.TRACKING_PREY:
+                for pred_idx in range(num_preds):
+                    accel = replaced_accs.get(pred_idx, pred_accs[pred_idx])
+                    if not OKTrack(accel, pred_states[pred_idx], prey_st):
+                        all_ok = False
                         break
 
             if all_ok:

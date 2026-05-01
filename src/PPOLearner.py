@@ -158,8 +158,8 @@ class PPOLearner(PPO):
                 hit = infos[0].get('task_failed', False)
                 if hit and not is_random_action:
                     print('**WARNING: task_failed on a shielded action (possible shield model gap, e.g. wall clipping)')
-                if hit and is_random_action:
-                    print('**WARNING: task_failed on a RANDOM action (shield exhausted all chances)')
+                # if hit and is_random_action:
+                #     print('**WARNING: task_failed on a RANDOM action (shield exhausted all chances)')
 
             self.num_timesteps += env.num_envs
 

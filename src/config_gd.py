@@ -48,7 +48,7 @@ DEFAULT_CONFIG = {
         #TBD: do we want to limit prey and pred speeds to account for terminal velcocities?
         # 'max_velocity': 10 / STEP_SIZE,
         'base_position':        np.array([0.0, 0.0]),
-        'num_preds':            3,
+        'num_preds':            1,
         'num_dims':             2,
         'PRED_SIZE':            0, # 0.1 for shield, 1 for no shield
         'PREY_SIZE':            0.1, #<-- why not make this AGENT_SIZE as well?
@@ -57,7 +57,7 @@ DEFAULT_CONFIG = {
         'MAX_EPISODE_STEPS':    20,
         'max_acceleration':     10,                           
         'workspace_size':       10,
-        'GEOFENCING' :          True,
+        'GEOFENCING' :          False,
         'DOING_OBSTACLES':      False, 
         'DOING_BOUNDED':        False,
         'STEPS_BOUND':          3,
@@ -74,8 +74,10 @@ DEFAULT_CONFIG = {
         'MIN_SEP':              2,     # predators must stay at least this far apart (collision avoidance); -1 to disable
 
         # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
+        'TRACKING_PREY':        True, # enable smart prey: adversarial prey acceleration + OKTrack shield
         'A_PREY_MAX':           5,     # max prey acceleration per axis (half of A_MAX)
-        'MAX_TRACK_DIST':       10,     # predator must stay within this L-inf distance of prey; -1 to disable
-        'MIN_TRACK_DIST':       -1,    # predator-prey min separation (collision avoidance); -1 to disable
+        'MAX_TRACK_DIST':       10,    # predator must stay within this L-inf distance of prey; -1 to disable
+        'MIN_TRACK_DIST':       -1,    # predator-prey min separation; -1 to disable.
+                                        # NOTE: >0 not supported — post-clip repair analogous to DOING_SEP would be needed first
     },
 }
