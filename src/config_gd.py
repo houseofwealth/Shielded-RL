@@ -21,7 +21,8 @@ import numpy as np
 DEFAULT_CONFIG = {
     'policy_class': MultiInputPolicy,
     'env_class': GameOfDronesEnv,
-    'action_selector_class': None,  # set below after DEFAULT_CONFIG to avoid circular import
+    #was previously using the classname reference in here directly but then that required this config to import the file with that actual class which caused circular imports elsewhere since that one needed the model file..
+    'action_selector_class': 'src.DronesActionSelector:DronesActionSelector',
 
     # ---hyperparams---
     'learning_rate': 3e-4,  #feb experiments with 5e-5,     #the higher, the faster the learning but can be unstable or overshoot the optimal soln
@@ -56,7 +57,7 @@ DEFAULT_CONFIG = {
         'MAX_EPISODE_STEPS':    20,
         'max_acceleration':     10,                           
         'workspace_size':       10,
-        'GEOFENCING' :          False,
+        'GEOFENCING' :          True,
         'DOING_OBSTACLES':      False, 
         'DOING_BOUNDED':        False,
         'STEPS_BOUND':          3,
@@ -68,13 +69,13 @@ DEFAULT_CONFIG = {
         'BObs' :                3,
         'TObs' :                8,
 
-        'DOING_SEP':            True, # enable pred-pred separation shield (OKDist)
+        'DOING_SEP':            False, # enable pred-pred separation shield (OKDist)
         'MAX_SEP':              -1,    # predators must stay within this distance of each other (L-inf); -1 to disable
-        'MIN_SEP':              2,   # predators must stay at least this far apart (collision avoidance); -1 to disable
+        'MIN_SEP':              2,     # predators must stay at least this far apart (collision avoidance); -1 to disable
+
+        # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
+        'A_PREY_MAX':           5,     # max prey acceleration per axis (half of A_MAX)
+        'MAX_TRACK_DIST':       10,     # predator must stay within this L-inf distance of prey; -1 to disable
+        'MIN_TRACK_DIST':       -1,    # predator-prey min separation (collision avoidance); -1 to disable
     },
 }
-
-# Import deferred to after DEFAULT_CONFIG is defined so that model_1pt.py
-# can successfully import DEFAULT_CONFIG when DronesActionSelector loads it.
-from src.DronesActionSelector import DronesActionSelector  # noqa: E402
-DEFAULT_CONFIG['action_selector_class'] = DronesActionSelector

@@ -1,11 +1,10 @@
 from WaterTankEnv import WaterTankEnv
 from stable_baselines3.ppo.policies import MultiInputPolicy
-from src.WaterTankActionSelector import WaterTankActionSelector
 
 DEFAULT_CONFIG = {
     'policy_class':             MultiInputPolicy,
     'env_class':                WaterTankEnv,
-    'action_selector_class':    WaterTankActionSelector,
+    'action_selector_class':    'src.WaterTankActionSelector:WaterTankActionSelector',
 
     # ---hyperparams---
     'learning_rate':            3e-4,

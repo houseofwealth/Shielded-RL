@@ -1,7 +1,7 @@
 from config_gd import DEFAULT_CONFIG  # Game of Drones
 # from config_wt import DEFAULT_CONFIG   # Water Tank
 from copy import deepcopy
-from src.PPOLearner import PPOLearner
+from src.PPOLearner import PPOLearner, resolve_action_selector_class
 import numpy as np
 import os
 import argparse
@@ -56,7 +56,7 @@ def loadLearner(config, experiment_id):
     learner = PPO.load(fname, env=env)
     learner.__class__ = PPOLearner
     learner.use_shield = config['env_config']['use_shield']
-    action_selector_class = config['action_selector_class']
+    action_selector_class = resolve_action_selector_class(config['action_selector_class'])
     learner.action_selector = action_selector_class(config, learner.policy, learner.env)
     return learner
 

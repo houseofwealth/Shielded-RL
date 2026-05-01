@@ -1,9 +1,18 @@
+import importlib
 from stable_baselines3 import PPO
 from gymnasium import spaces
 import time
 from stable_baselines3.common.utils import safe_mean, obs_as_tensor
 import numpy as np
 import torch as th
+
+
+def resolve_action_selector_class(action_selector_class):
+    if not isinstance(action_selector_class, str):
+        return action_selector_class
+    module_name, class_name = action_selector_class.split(':', 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
 
 
 class PPOLearner(PPO):
@@ -25,7 +34,7 @@ class PPOLearner(PPO):
         )
         self.use_shield = config['env_config']['use_shield']
         #policy member var gets initialized by the parent class (PPO) constructor..
-        action_selector_class = config['action_selector_class']
+        action_selector_class = resolve_action_selector_class(config['action_selector_class'])
         self.action_selector = action_selector_class(config, self.policy, self.env)
 
     '''Overrides parent method in PPO (which just calls its OPA's learn method this is same as that with couple of changes).
