@@ -129,68 +129,70 @@ class DronesActionSelector(ActionSelector):
 
         steps_remaining = self.env.STEPS_BOUND - self.env.n_steps_to_bound
 
-        for num, action in enumerate(actions): 
-            agent_action = action.tolist()
-            all_ok = True
-            replaced_accs = {}  # pred_idx -> replacement acceleration
-            # agent_acceleration = self.env.actionToAcceleration(agent_action)  # old: single pred
-            joint_acc = self.env.actionToAcceleration(agent_action)  # clip against full joint action_space
+        # Independent per-predator selection: scan all samples for each predator separately.
+        # chosen_per_pred[pred_idx] = (acc_to_use, is_replaced, sample_index)
+        # This reduces effective joint rejection rate from p^num_preds to p.
+        chosen_per_pred = {}
 
-            pred_accs = []
-            for pred_idx in range(num_preds):
-                # pred_action = agent_action[pred_idx * num_dims:(pred_idx + 1) * num_dims]  # old: passed slice to actionToAcceleration, but that clips against full action_space shape so fails for num_preds>1
-                # pred_acc = self.env.actionToAcceleration(pred_action)  # old
+        for pred_idx in range(num_preds):
+            for num, action in enumerate(actions):
+                joint_acc = self.env.actionToAcceleration(action.tolist())
                 pred_acc = joint_acc[pred_idx * num_dims:(pred_idx + 1) * num_dims]
-                pred_accs.append(pred_acc)
+
                 res = OK(pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
                 if not res:
-                    all_ok = False
-                    break
-                #this weird test for when OK returns the action the agent should pick
+                    continue
+
+                # OK may return a replacement acceleration instead of True
                 if res != True and len(res) == num_dims:
-                    replaced_accs[pred_idx] = res
-
-            # Pairwise separation check: only pred i=0 is held responsible for each pair (i,j)
-            if all_ok and self.env.DOING_SEP and num_preds > 1:
-                for i in range(num_preds):
-                    for j in range(i + 1, num_preds):
-                        accel_i = replaced_accs.get(i, pred_accs[i])
-                        accel_j = replaced_accs.get(j, pred_accs[j])
-                        if not OKDist(accel_i, pred_states[i], accel_j, pred_states[j]):
-                            all_ok = False
-                            break
-                    if not all_ok:
-                        break
-
-            # Per-pred tracking check against adversarial prey
-            if all_ok and self.env.TRACKING_PREY:
-                for pred_idx in range(num_preds):
-                    accel = replaced_accs.get(pred_idx, pred_accs[pred_idx])
-                    if not OKTrack(accel, pred_states[pred_idx], prey_st):
-                        all_ok = False
-                        break
-
-            if all_ok:
-                # if num>0 and res == True: print('accepted', agent_acceleration, current_state)
-                shield_needed = num > 0 or replaced_accs
-                if shield_needed:
-                    for pred in self.env.predators:
-                        pred.shield_was_used_in_step = True
-                if replaced_accs:
-                    # print('res acc', res)
-                    mixed_action = list(agent_action)
-                    for pred_idx, accel in replaced_accs.items():
-                        override_action = self.acclerationToAction(accel)
-                        mixed_action[pred_idx * num_dims:(pred_idx + 1) * num_dims] = override_action
-                    actions[0] = mixed_action
-                    #**TBD what about multiple preds?
-                    chosen_action_index = 0   
+                    acc_to_use = res
+                    is_replaced = True
                 else:
-                    # print('action', num, 'is ok')
-                    chosen_action_index = num
+                    acc_to_use = pred_acc
+                    is_replaced = False
+
+                if self.env.TRACKING_PREY:
+                    if not OKTrack(acc_to_use, pred_states[pred_idx], prey_st):
+                        continue
+
+                chosen_per_pred[pred_idx] = (acc_to_use, is_replaced, num)
                 break
-            # else: 
-                # print('agent_acc', agent_acc, "failed in", current_state)
+
+        # If any predator exhausted all samples, signal failure
+        if len(chosen_per_pred) < num_preds:
+            return -1
+
+        # Pairwise separation check on composed per-pred selections (best-effort: does not
+        # re-search if it fails, since DOING_SEP is typically False)
+        if self.env.DOING_SEP and num_preds > 1:
+            for i in range(num_preds):
+                for j in range(i + 1, num_preds):
+                    if not OKDist(chosen_per_pred[i][0], pred_states[i],
+                                  chosen_per_pred[j][0], pred_states[j]):
+                        return -1
+
+        # Did the shield have to do anything?
+        sample_indices  = [chosen_per_pred[i][2] for i in range(num_preds)]
+        any_replaced    = any(chosen_per_pred[i][1] for i in range(num_preds))
+        all_same_sample = len(set(sample_indices)) == 1
+
+        shield_needed = any_replaced or not all_same_sample or sample_indices[0] > 0
+        if shield_needed:
+            for pred in self.env.predators:
+                pred.shield_was_used_in_step = True
+
+        if not any_replaced and all_same_sample:
+            # All predators passed from the same joint sample with no overrides — use it directly
+            chosen_action_index = sample_indices[0]
+        else:
+            # Compose a joint action from the per-predator winners
+            composed = list(actions[0].tolist())
+            for pred_idx in range(num_preds):
+                acc = chosen_per_pred[pred_idx][0]
+                composed[pred_idx * num_dims:(pred_idx + 1) * num_dims] = self.acclerationToAction(acc)
+            actions[0] = composed
+            chosen_action_index = 0
+
         return chosen_action_index    
 
 
