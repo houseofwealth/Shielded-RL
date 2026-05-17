@@ -35,12 +35,13 @@ DEFAULT_CONFIG = {
     'buffer_size': int(30E3),             #rollout buffer size
 
     # ---environment setup---
-    #PRED_SIZE for determining if a collision happened
-    #MIN_SEP is a stronger constraint that ensures a min sep is mainted beteween preds eg drones shouldnt get too close
-    #KILL_RADIUS is the distance at which a predator is considered to have caught the prey.
+    #PRED_SIZE - make non-zero if you want non point objects
+    #MIN_SEP - ensures a min sep is mainted beteween preds eg drones shouldnt get too close (set to small non zero value to shield against collisions)
+    #KILL_RADIUS - is the distance at which a predator is considered to have caught the prey.
+    #PREY_SIZE - for determining if prey reached home base
 
     'env_config': {        
-        'use_shield': True,
+        'use_shield': False,
         'num_shield_chances': 100,
 
         'initial_prey_pos' : np.array([0, 10.0]),         #chg for 3-D, also Other option is 'random'
@@ -50,8 +51,8 @@ DEFAULT_CONFIG = {
         'base_position':        np.array([0.0, 0.0]),
         'num_preds':            3,
         'num_dims':             2,
-        'PRED_SIZE':            0, # 0.1 for shield, 1 for no shield
-        'PREY_SIZE':            0.1, #<-- why not make this AGENT_SIZE as well?
+        'PRED_SIZE':            0,   #point objects
+        'PREY_SIZE':            0.1, #
         'KILL_RADIUS':          1.0,
         'STEP_SIZE':            1,
         'MAX_EPISODE_STEPS':    20,
@@ -69,12 +70,15 @@ DEFAULT_CONFIG = {
         'BObs' :                3,
         'TObs' :                8,
 
-        'DOING_SEP':            False, # enable pred-pred separation shield (OKDist)
+        # 'CHECKING_COLLISIONS':  True, # whether shield should check for collisions (not whether collisions should be fatal)
+
+        # --- min max separation between preds ---
+        'DOING_SEP':            True, # enable pred-pred separation shield (OKDist)
         'MAX_SEP':              -1,    # predators must stay within this distance of each other (L-inf); -1 to disable
-        'MIN_SEP':              2,     # predators must stay at least this far apart (collision avoidance); -1 to disable
+        'MIN_SEP':              0.1,     # predators must stay at least this far apart (collision avoidance); -1 to disable. Set small non zero value if all you want is to shield against pred collisions
 
         # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
-        'TRACKING_PREY':        True, # enable smart prey: adversarial prey acceleration + OKTrack shield
+        'TRACKING_PREY':        False, # enable smart prey: adversarial prey acceleration + OKTrack shield
         'A_PREY_MAX':           7,     # max prey acceleration per axis (half of A_MAX)
         'MAX_TRACK_DIST':       10,    # predator must stay within this L-inf distance of prey; -1 to disable
         'MIN_TRACK_DIST':       -1,    # predator-prey min separation; -1 to disable.

@@ -123,7 +123,82 @@ def fnNot(x):  return not x
 def implies(p, q):
     return not p or q
 
-'''MIN_SEP = 1'''
+''' ------------------------ MIN_SEP - 0.5 ------------------------------'''
+def solnExistsDist_MIN_SEP_0point1(curr_st1, curr_st2):
+    '''
+     Or(diffx >= 1/10,
+       diffx <= -1/10,
+       diffy >= 1/10,
+       diffy <= -1/10)
+    '''
+    x1, y1, vx1, vy1 = curr_st1
+    x2, y2, vx2, vy2 = curr_st2
+    _diffx   = x1 - x2
+    _diffy   = y1 - y2
+    _diffv_x = vx1 - vx2
+    _diffv_y = vy1 - vy2
+
+    ok = fnOr([
+        _diffx >= 0.1,
+        _diffx <= -0.1,
+        _diffy >= 0.1,
+        _diffy <= -0.1,
+    ])
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MAX_SEP == -1, (
+        f'This shield was only computed for MAX_SEP=-1; got MAX_SEP={MAX_SEP}'
+    )
+    return ok
+
+def OKDist_MIN_SEP_0point1(agent1_action, curr_st1, agent2_action, curr_st2):
+    '''
+       4   Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10)
+
+    '''
+    if not DOING_SEP:
+        return True
+
+    ax1, ay1 = agent1_action
+    x1,  y1,  vx1, vy1 = curr_st1
+    ax2, ay2 = agent2_action
+    x2,  y2,  vx2, vy2 = curr_st2
+
+    # Convert to relative coordinates (matching the Z3 vars above)
+    _diffx   = x1  - x2
+    _diffy   = y1  - y2
+    _diffv_x = vx1 - vx2
+    _diffv_y = vy1 - vy2
+    _diffa_x = ax1 - ax2
+    _diffa_y = ay1 - ay2
+
+    ok = fnAnd([
+        _diffa_x >= -DIFFA_MAX,
+        _diffa_x <= DIFFA_MAX,
+        _diffa_y >= -DIFFA_MAX,
+        _diffa_y <= DIFFA_MAX,
+    ])
+
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MAX_SEP == -1, (
+        f'This shield was only computed for MAX_SEP=-1; got MAX_SEP={MAX_SEP}'
+    )
+    ok = ok and fnOr([
+        _diffy + _diffv_y + 0.5 * _diffa_y >= 0.1,
+        _diffx + _diffv_x + 0.5 * _diffa_x <= -0.1,
+        _diffy + _diffv_y + 0.5 * _diffa_y <= -0.1,
+        _diffx + _diffv_x + 0.5 * _diffa_x >= 0.1,
+    ])
+
+    return ok
+
+''' ----------------------- MIN_SEP = 1 ----------------------------------'''
 def solnExistsDist_MIN_SEP_1(curr_st1, curr_st2):
     """State invariant for predator-predator separation.
     Returns True if the current relative state satisfies the synthesised invariant.
@@ -139,14 +214,18 @@ def solnExistsDist_MIN_SEP_1(curr_st1, curr_st2):
     _diffv_x = vx1 - vx2
     _diffv_y = vy1 - vy2
 
-    assert MIN_SEP == 1, f'solnExistsDistPy: invariant only synthesised for MIN_SEP=1, got {MIN_SEP}'
     ok = fnOr([
         _diffx  >= MIN_SEP,
         _diffx  <= -MIN_SEP,
         _diffy  >= MIN_SEP,
         _diffy  <= -MIN_SEP,
     ])
-    assert MAX_SEP == -1, 'solnExistsDistPy: MAX_SEP invariant not yet implemented'
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MAX_SEP == -1, (
+        f'This shield was only computed for MAX_SEP=-1; got MAX_SEP={MAX_SEP}'
+    )
     return ok
 
 
@@ -180,14 +259,18 @@ def OKDist_MIN_SEP_1(agent1_action, curr_st1, agent2_action, curr_st2):
         _diffa_y <= DIFFA_MAX,
     ])
 
-    assert MIN_SEP == 1, f'OKDist: this OKDist is only for MIN_SEP=1, got {MIN_SEP}'
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MAX_SEP == -1, (
+        f'This shield was only computed for MAX_SEP=-1; got MAX_SEP={MAX_SEP}'
+    )
     ok = ok and fnOr([
         _diffx + _diffv_x + 0.5 * _diffa_x <= -1,
         _diffx + _diffv_x + 0.5 * _diffa_x >= 1,
         _diffy + _diffv_y + 0.5 * _diffa_y >= 1,
         _diffy + _diffv_y + 0.5 * _diffa_y <= -1,
     ])
-    assert MAX_SEP == -1, 'OKDist: this OKDist is only for MAX_SEP=-1, got {MAX_SEP}'
 
     return ok
 
@@ -208,7 +291,7 @@ def OKDist_MIN_SEP_1(agent1_action, curr_st1, agent2_action, curr_st2):
     '''
 
 ''' ------------------  MIN_SEP = 2 ----------------------------------------'''
-def solnExists(curr_st1, curr_st2):
+def solnExists_2(curr_st1, curr_st2):
     """State invariant for predator-predator separation (MIN_SEP=2).
     Synthesised: Or(diffx >= 2, diffx <= -2, diffy >= 2, diffy <= -2)
     """
@@ -219,18 +302,22 @@ def solnExists(curr_st1, curr_st2):
     _diffv_x = vx1 - vx2
     _diffv_y = vy1 - vy2
 
-    assert MIN_SEP == 2, f'solnExistsDistPy: invariant only synthesised for MIN_SEP=2, got {MIN_SEP}'
     ok = fnOr([
         _diffx  >= 2,
         _diffx  <= -2,
         _diffy  >= 2,
         _diffy  <= -2,
     ])
-    assert MAX_SEP == -1, 'solnExistsDistPy: MAX_SEP invariant not yet implemented'
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MAX_SEP == -1, (
+        f'This shield was only computed for MAX_SEP=-1; got MAX_SEP={MAX_SEP}'
+    )
     return ok
 
 
-def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
+def OKDist_2(agent1_action, curr_st1, agent2_action, curr_st2):
     """Runtime separation check (synthesised by buildSafetyShield, MIN_SEP=2).
     agent1_action = (ax1, ay1),  curr_st1 = (x1, y1, vx1, vy1)
     agent2_action = (ax2, ay2),  curr_st2 = (x2, y2, vx2, vy2)
@@ -258,14 +345,18 @@ def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
         _diffa_y <= DIFFA_MAX,
     ])
 
-    assert MIN_SEP == 2, f'OKDist: this OKDist is only for MIN_SEP=2, got {MIN_SEP}'
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MAX_SEP == -1, (
+        f'This shield was only computed for MAX_SEP=-1; got MAX_SEP={MAX_SEP}'
+    )
     ok = ok and fnOr([
         _diffx + _diffv_x + 0.5 * _diffa_x <= -2,
         _diffx + _diffv_x + 0.5 * _diffa_x >= 2,
         _diffy + _diffv_y + 0.5 * _diffa_y >= 2,
         _diffy + _diffv_y + 0.5 * _diffa_y <= -2,
     ])
-    assert MAX_SEP == -1, 'OKDist: this OKDist is only for MAX_SEP=-1, got {MAX_SEP}'
 
     return ok
 
@@ -280,3 +371,31 @@ def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
            diffy + diffv_y + 1/2*diffa_y >= 2,
            diffy + diffv_y + 1/2*diffa_y <= -2)
     '''
+
+
+def solnExists(curr_st1, curr_st2):
+    if not DOING_SEP:
+        return True
+
+    if MIN_SEP in (0.1, 0.5):
+        return solnExistsDist_MIN_SEP_0point1(curr_st1, curr_st2)
+    if MIN_SEP == 1:
+        return solnExistsDist_MIN_SEP_1(curr_st1, curr_st2)
+    if MIN_SEP == 2:
+        return solnExists_2(curr_st1, curr_st2)
+
+    raise AssertionError(f'solnExists: unsupported MIN_SEP={MIN_SEP}')
+
+
+def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
+    if not DOING_SEP:
+        return True
+
+    if MIN_SEP in (0.1, 0.5):
+        return OKDist_MIN_SEP_0point1(agent1_action, curr_st1, agent2_action, curr_st2)
+    if MIN_SEP == 1:
+        return OKDist_MIN_SEP_1(agent1_action, curr_st1, agent2_action, curr_st2)
+    if MIN_SEP == 2:
+        return OKDist_2(agent1_action, curr_st1, agent2_action, curr_st2)
+
+    raise AssertionError(f'OKDist: unsupported MIN_SEP={MIN_SEP}')
