@@ -79,7 +79,7 @@ DEFAULT_CONFIG = {
 
         # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
         'TRACKING_PREY':        False, # enable smart prey: adversarial prey acceleration + OKTrack shield
-        'A_PREY_MAX':           7,     # max prey acceleration per axis (half of A_MAX)
+        'A_PREY_MAX':           5,     # max prey acceleration per axis (7 is max for \E \A)
         'MAX_TRACK_DIST':       10,    # predator must stay within this L-inf distance of prey; -1 to disable
         'MIN_TRACK_DIST':       -1,    # predator-prey min separation; -1 to disable.
                                         # NOTE: >0 not supported — post-clip repair analogous to DOING_SEP would be needed first
