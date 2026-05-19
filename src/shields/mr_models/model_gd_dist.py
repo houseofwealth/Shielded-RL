@@ -372,7 +372,122 @@ def OKDist_2(agent1_action, curr_st1, agent2_action, curr_st2):
            diffy + diffv_y + 1/2*diffa_y <= -2)
     '''
 
+def solnExistsDist_MIN_SEP_1_MAX_SEP_5(curr_st1, curr_st2):
+    '''
+    And(diffx >= -5,
+    diffx <= 5,
+    diffy >= -5,
+    diffy <= 5,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1),
+    2*diffv_y + 2*diffy <= 30,
+    -1*diffx + -1*diffv_x <= 15,
+    -1*diffv_y + -1*diffy <= 15,
+    2*diffx + 2*diffv_x <= 30)
+    '''
+    x1, y1, vx1, vy1 = curr_st1
+    x2, y2, vx2, vy2 = curr_st2
+    _diffx   = x1 - x2
+    _diffy   = y1 - y2
+    _diffv_x = vx1 - vx2
+    _diffv_y = vy1 - vy2
 
+    ok = fnAnd([
+        _diffx >= -5,
+        _diffx <= 5,
+        _diffy >= -5,
+        _diffy <= 5,
+        fnOr([
+            _diffx >= 1,
+            _diffx <= -1,
+            _diffy >= 1,
+            _diffy <= -1,
+        ]),
+        2 * _diffv_y + 2 * _diffy <= 30,
+        -1 * _diffx + -1 * _diffv_x <= 15,
+        -1 * _diffv_y + -1 * _diffy <= 15,
+        2 * _diffx + 2 * _diffv_x <= 30,
+    ])
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MIN_SEP == 1, (
+        f'This shield was only computed for MIN_SEP=1; got MIN_SEP={MIN_SEP}'
+    )
+    assert MAX_SEP == 5, (
+        f'This shield was only computed for MAX_SEP=5; got MAX_SEP={MAX_SEP}'
+    )
+    return ok
+
+def OKDist_MIN_SEP_1_MAX_SEP_5(agent1_action, curr_st1, agent2_action, curr_st2):
+    """
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   diffx + diffv_x + 1/2*diffa_x >= -5
+   5   diffx + diffv_x + 1/2*diffa_x <= 5
+   6   diffy + diffv_y + 1/2*diffa_y >= -5
+   7   diffy + diffv_y + 1/2*diffa_y <= 5
+   8   Or(diffx + diffv_x + 1/2*diffa_x >= 1,
+   diffy + diffv_y + 1/2*diffa_y >= 1,
+   diffy + diffv_y + 1/2*diffa_y <= -1,
+   diffx + diffv_x + 1/2*diffa_x <= -1)
+   9   4*diffv_y + 3*diffa_y + 2*diffy <= 30
+   10   -1*diffx + -2*diffv_x + -3/2*diffa_x <= 15
+   11   -2*diffv_y + -3/2*diffa_y + -1*diffy <= 15
+   12   2*diffx + 4*diffv_x + 3*diffa_x <= 30
+    """
+    if not DOING_SEP:
+        return True
+
+    ax1, ay1 = agent1_action
+    x1,  y1,  vx1, vy1 = curr_st1
+    ax2, ay2 = agent2_action
+    x2,  y2,  vx2, vy2 = curr_st2
+
+    # Convert to relative coordinates (matching the Z3 vars above)
+    _diffx   = x1  - x2
+    _diffy   = y1  - y2
+    _diffv_x = vx1 - vx2
+    _diffv_y = vy1 - vy2
+    _diffa_x = ax1 - ax2
+    _diffa_y = ay1 - ay2
+
+    ok = fnAnd([
+        _diffa_x >= -DIFFA_MAX,
+        _diffa_x <= DIFFA_MAX,
+        _diffa_y >= -DIFFA_MAX,
+        _diffa_y <= DIFFA_MAX,
+    ])
+
+    assert DIFFA_MAX == 20, (
+        f'This shield was only computed for DIFFA_MAX=20; got DIFFA_MAX={DIFFA_MAX}'
+    )
+    assert MIN_SEP == 1, (
+        f'This shield was only computed for MIN_SEP=1; got MIN_SEP={MIN_SEP}'
+    )
+    assert MAX_SEP == 5, (
+        f'This shield was only computed for MAX_SEP=5; got MAX_SEP={MAX_SEP}'
+    )
+    ok = ok and fnAnd([
+        _diffx + _diffv_x + 0.5 * _diffa_x >= -5,
+        _diffx + _diffv_x + 0.5 * _diffa_x <= 5,
+        _diffy + _diffv_y + 0.5 * _diffa_y >= -5,
+        _diffy + _diffv_y + 0.5 * _diffa_y <= 5,
+        fnOr([
+            _diffx + _diffv_x + 0.5 * _diffa_x >= 1,
+            _diffy + _diffv_y + 0.5 * _diffa_y >= 1,
+            _diffy + _diffv_y + 0.5 * _diffa_y <= -1,
+            _diffx + _diffv_x + 0.5 * _diffa_x <= -1,
+        ]),
+        4 * _diffv_y + 3 * _diffa_y + 2 * _diffy <= 30,
+        -1 * _diffx + -2 * _diffv_x + -1.5 * _diffa_x <= 15,
+        -2 * _diffv_y + -1.5 * _diffa_y + -1 * _diffy <= 15,
+        2 * _diffx + 4 * _diffv_x + 3 * _diffa_x <= 30,
+    ])
+
+    return ok
+    
 def solnExists(curr_st1, curr_st2):
     if not DOING_SEP:
         return True
@@ -380,11 +495,13 @@ def solnExists(curr_st1, curr_st2):
     if MIN_SEP in (0.1, 0.5):
         return solnExistsDist_MIN_SEP_0point1(curr_st1, curr_st2)
     if MIN_SEP == 1:
+        if MAX_SEP == 5:
+            return solnExistsDist_MIN_SEP_1_MAX_SEP_5(curr_st1, curr_st2)
         return solnExistsDist_MIN_SEP_1(curr_st1, curr_st2)
     if MIN_SEP == 2:
         return solnExists_2(curr_st1, curr_st2)
 
-    raise AssertionError(f'solnExists: unsupported MIN_SEP={MIN_SEP}')
+    raise AssertionError(f'solnExists: unsupported MIN_SEP={MIN_SEP}, MAX_SEP={MAX_SEP}')
 
 
 def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
@@ -394,8 +511,10 @@ def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
     if MIN_SEP in (0.1, 0.5):
         return OKDist_MIN_SEP_0point1(agent1_action, curr_st1, agent2_action, curr_st2)
     if MIN_SEP == 1:
+        if MAX_SEP == 5:
+            return OKDist_MIN_SEP_1_MAX_SEP_5(agent1_action, curr_st1, agent2_action, curr_st2)
         return OKDist_MIN_SEP_1(agent1_action, curr_st1, agent2_action, curr_st2)
     if MIN_SEP == 2:
         return OKDist_2(agent1_action, curr_st1, agent2_action, curr_st2)
 
-    raise AssertionError(f'OKDist: unsupported MIN_SEP={MIN_SEP}')
+    raise AssertionError(f'OKDist: unsupported MIN_SEP={MIN_SEP}, MAX_SEP={MAX_SEP}')

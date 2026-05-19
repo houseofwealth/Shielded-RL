@@ -41,7 +41,7 @@ DEFAULT_CONFIG = {
     #PREY_SIZE - for determining if prey reached home base
 
     'env_config': {        
-        'use_shield': False,
+        'use_shield': True,
         'num_shield_chances': 100,
 
         'initial_prey_pos' : np.array([0, 10.0]),         #chg for 3-D, also Other option is 'random'
@@ -74,8 +74,8 @@ DEFAULT_CONFIG = {
 
         # --- min max separation between preds ---
         'DOING_SEP':            True, # enable pred-pred separation shield (OKDist)
-        'MAX_SEP':              -1,    # predators must stay within this distance of each other (L-inf); -1 to disable
-        'MIN_SEP':              0.1,     # predators must stay at least this far apart (collision avoidance); -1 to disable. Set small non zero value if all you want is to shield against pred collisions
+        'MAX_SEP':              5, #-1,    # predators must stay within this distance of each other (L-inf); -1 to disable
+        'MIN_SEP':              1, #0.1,     # predators must stay at least this far apart (collision avoidance); -1 to disable. Set small non zero value if all you want is to shield against pred collisions
 
         # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
         'TRACKING_PREY':        False, # enable smart prey: adversarial prey acceleration + OKTrack shield
