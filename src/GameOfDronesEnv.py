@@ -50,7 +50,7 @@ class GameOfDronesEnv(Env):
         self.__initPreyPosAndVel()
         self.__initPredPoszAndVels()
 
-        obs, _ = self.__getObservation()
+        obs, _, _ = self.__getObservation()
         # cant put this here b/c of cyclic dependency b/c shield <- model_1pt <- config <- env so set a flag instead    
         # se = solnExistsPy(self.predators[0].position + self.predators[0].velocity, 
         #                   self.prey.position + self.prey.velocity, 
@@ -67,7 +67,130 @@ class GameOfDronesEnv(Env):
         self.num_episode_steps += 1
         # self.num_steps_in_this_env += 1
         acceleration = self.actionToAcceleration(action)
+        predators_clipped_this_step = self.__movePreds(acceleration)
+        self.__doAnyPostClipFix(predators_clipped_this_step)
 
+        # prey moves: constant velocity normally; adversarial random acceleration when TRACKING_PREY
+        if self.TRACKING_PREY:
+            prey_acc = np.random.uniform(-self.A_PREY_MAX, self.A_PREY_MAX, self.num_dims)
+        else:
+            prey_acc = 0
+        self.prey.move(prey_acc, self.STEP_SIZE)
+        self.prey.clipPosToWSBoundary()
+
+        obs, task_failed, task_failed_expected = self.__getObservation(predators_clipped_this_step=predators_clipped_this_step)
+        if self.DOING_BOUNDED: 
+            bound_exceeded = self.n_steps_to_bound > (self.STEPS_BOUND - 1) #wy was this 2??
+            if bound_exceeded: 
+                self.n_bound_exceeded += 1
+                if self.n_bound_exceeded%100 == 0: print('n_bound_exceeded', self.n_bound_exceeded)
+            task_failed = task_failed or bound_exceeded
+        
+        truncated = self.num_episode_steps >= self.MAX_EPISODE_STEPS
+        prey_escaped = self.prey.at(self.base_position, self.PREY_SIZE)
+        if prey_escaped: 
+            self.n_p_e += 1
+            if self.n_p_e%100 == 0: print('n_prey_escaped', self.n_p_e)
+        if truncated: 
+            self.n_truncated += 1
+            # [seems to be same as n_prey_escaped] if self.n_truncated%10 == 0: print('n_truncated', self.n_truncated)
+
+        '''terminated = natural end of episode (task_failed, pred caught prey, or prey escaped); truncated = cut short by time limit.
+        Kept separate so VecEnv can set TimeLimit.truncated in infos, enabling correct GAE bootstrapping in collect_rollouts.
+        task_failed if preds collided (w/ each other, geofence, bound exceeded, etc)'''
+        prey_caught = self.__aPredCaughtPrey()
+        terminated = task_failed or \
+                prey_caught or \
+                prey_escaped
+            
+        # reward = self.getReward(obs['pred_posz'], obs['target_pos'], done)
+        # pass terminated or truncated so __getReward still fires terminal rewards on timeout (preserves existing behaviour)
+        reward = self.__getReward(terminated or truncated, task_failed)
+        self.n_tot_rew += reward
+        self.n_steps_to_bound += 1
+        # SB3 wrapper on step() requires all these 5 things
+        return obs, reward, terminated, truncated, {
+            'task_failed': task_failed,
+            'task_failed_expected': task_failed_expected,
+            'prey_caught': prey_caught,
+            'prey_escaped': prey_escaped,
+        }
+
+
+    def printSummary(self, n_runs):
+        print(f'\n--- Summary over {n_runs} runs ---')
+        print(f'Prey caught:          {self.n_prey_caught}')
+        print(f'Prey escaped:         {self.n_p_e}')
+        print(f'Truncated (timeout):  {self.n_truncated}')
+        print(f'Geofence/obs hits:    {self.n_hit_geofence_or_obs}')
+        print(f'Separation violations:{self.n_sep_violations}')
+        print(f'Track violations:     {self.n_track_violations}')
+        print(f'Pred-pred collisions: {self.n_pred_collisions}')
+        print(f'Bound exceeded:       {self.n_bound_exceeded}')
+
+    def actionToAcceleration(self, action):
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        return action * self.max_acceleration
+
+    def getCalculatedAndActualNextState(self, joint_acceleration, pred_states):
+        '''
+        Selector helper: compute one-step predator-only transition from provided
+        predator states, returning both calculated_next_state (raw dynamics)
+        and actual_next_state (after env clipping semantics).
+        '''
+        num_dims = self.num_dims
+        dt = self.STEP_SIZE
+        joint_acceleration = np.asarray(joint_acceleration, dtype=float).reshape(self.num_preds * num_dims)
+
+        calculated_pred_positions = []
+        calculated_pred_velocities = []
+        actual_pred_positions = []
+        actual_pred_velocities = []
+        which_preds_clipped = np.zeros(self.num_preds, dtype=bool)
+
+        for pred_idx in range(self.num_preds):
+            st = np.asarray(pred_states[pred_idx], dtype=float)
+            old_pos = st[:num_dims]
+            old_vel = st[num_dims:2 * num_dims]
+            acc = joint_acceleration[pred_idx * num_dims:(pred_idx + 1) * num_dims]
+
+            delta_v = acc * dt
+            calculated_pos = old_pos + old_vel * dt + (delta_v / 2.0) * dt
+            calculated_vel = old_vel + acc * dt
+
+            actual_pos, actual_vel, clipped = self.__clipStateToWSBoundary(
+                old_pos, calculated_pos, calculated_vel
+            )
+            which_preds_clipped[pred_idx] = clipped
+
+            calculated_pred_positions.append(calculated_pos)
+            calculated_pred_velocities.append(calculated_vel)
+            actual_pred_positions.append(actual_pos)
+            actual_pred_velocities.append(actual_vel)
+
+        return {
+            'calculated_next_state': {
+                'pred_positions': np.asarray(calculated_pred_positions, dtype=float),
+                'pred_velocities': np.asarray(calculated_pred_velocities, dtype=float),
+            },
+            'actual_next_state': {
+                'pred_positions': np.asarray(actual_pred_positions, dtype=float),
+                'pred_velocities': np.asarray(actual_pred_velocities, dtype=float),
+            },
+            'which_preds_clipped': which_preds_clipped,
+        }
+
+    def resamplePredatorsForShieldInit(self):
+        self.__initPredPoszAndVels()
+        obs, _, _ = self.__getObservation()
+        self.any_pred_collided_this_step = False
+        return obs
+
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+    def __movePreds(self, acceleration):
         # ask each pred to move and if its position falls outside the arena it needs to be clipped. However, sometimes that clipping can cause preds to end up closer than MIN_SEP, so after all preds have moved and been clipped, a correction may be needed see below, but need to record which preds were clipped
         predators_clipped_this_step = np.zeros(self.num_preds, dtype=bool)
         for pred_num, predator in enumerate(self.predators):
@@ -78,7 +201,43 @@ class GameOfDronesEnv(Env):
                 pre_clip_position = predator.position.copy()
                 predator.clipPosToWSBoundary()
                 predators_clipped_this_step[pred_num] = not np.array_equal(predator.position, pre_clip_position)
+        return predators_clipped_this_step
 
+    '''this used to be clipPostoWSBoundary but now it also zeros out the vel'''
+    def __clipStateToWSBoundary(self, old_position, calculated_position, calculated_velocity):
+        old_position = np.asarray(old_position, dtype=float)
+        calculated_position = np.asarray(calculated_position, dtype=float)
+        actual_position = calculated_position.copy()
+        actual_velocity = np.asarray(calculated_velocity, dtype=float).copy()
+
+        displacement = calculated_position - old_position
+        t_hit = 1.0
+        hit_dims = np.zeros(self.num_dims, dtype=bool)
+
+        for d in range(self.num_dims):
+            lo = 0.0 if d == self.num_dims - 1 else -self.workspace_size
+            hi = self.workspace_size
+            if abs(displacement[d]) < 1e-12:
+                continue
+            if displacement[d] > 0:
+                t = (hi - old_position[d]) / displacement[d]
+            else:
+                t = (lo - old_position[d]) / displacement[d]
+            t = max(t, 0.0)
+            if t < t_hit - 1e-12:
+                t_hit = t
+                hit_dims[:] = False
+                hit_dims[d] = True
+            elif t < t_hit + 1e-12:
+                hit_dims[d] = True
+
+        if t_hit < 1.0:
+            actual_position = old_position + t_hit * displacement
+            actual_velocity[hit_dims] = 0.0
+
+        return actual_position, actual_velocity, bool(t_hit < 1.0)
+
+    def __doAnyPostClipFix(self, predators_clipped_this_step):
         # Post-clip sep fix: clipping can push preds closer than MIN_SEP. Only repair violating pairs involving a predator whose motion was clipped this step; unclipped sep failures should remain visible to __getObservation(). Random positions land well away from the threshold so float32 precision issues (unlike a deterministic nudge to exactly MIN_SEP) are avoided.
         if self.DOING_SEP and self.MIN_SEP > 0 and self.num_preds > 1:
             low = np.array([-self.workspace_size] * (self.num_dims - 1) + [0.0], dtype=np.float32)
@@ -111,67 +270,6 @@ class GameOfDronesEnv(Env):
             #             p1.position = p1.position.copy()
             #             p1.position[d] += sign * (self.MIN_SEP - abs(diff[d]))
 
-        # prey moves: constant velocity normally; adversarial random acceleration when TRACKING_PREY
-        if self.TRACKING_PREY:
-            prey_acc = np.random.uniform(-self.A_PREY_MAX, self.A_PREY_MAX, self.num_dims)
-        else:
-            prey_acc = 0
-        self.prey.move(prey_acc, self.STEP_SIZE)
-        self.prey.clipPosToWSBoundary()
-
-        obs, task_failed = self.__getObservation()
-        if self.DOING_BOUNDED: 
-            bound_exceeded = self.n_steps_to_bound > (self.STEPS_BOUND - 1) #wy was this 2??
-            if bound_exceeded: 
-                self.n_bound_exceeded += 1
-                if self.n_bound_exceeded%100 == 0: print('n_bound_exceeded', self.n_bound_exceeded)
-            task_failed = task_failed or bound_exceeded
-        
-        truncated = self.num_episode_steps >= self.MAX_EPISODE_STEPS
-        prey_escaped = self.prey.at(self.base_position, self.PREY_SIZE)
-        if prey_escaped: 
-            self.n_p_e += 1
-            if self.n_p_e%100 == 0: print('n_prey_escaped', self.n_p_e)
-        if truncated: 
-            self.n_truncated += 1
-            # [seems to be same as n_prey_escaped] if self.n_truncated%10 == 0: print('n_truncated', self.n_truncated)
-
-        '''terminated = natural end of episode (task_failed, pred caught prey, or prey escaped); truncated = cut short by time limit.
-        Kept separate so VecEnv can set TimeLimit.truncated in infos, enabling correct GAE bootstrapping in collect_rollouts.
-        task_failed if preds collided (w/ each other, geofence, bound exceeded, etc)'''
-        prey_caught = self.__aPredCaughtPrey()
-        terminated = task_failed or \
-                prey_caught or \
-                prey_escaped
-            
-        # reward = self.getReward(obs['pred_posz'], obs['target_pos'], done)
-        # pass terminated or truncated so __getReward still fires terminal rewards on timeout (preserves existing behaviour)
-        reward = self.__getReward(terminated or truncated, task_failed)
-        self.n_tot_rew += reward
-        self.n_steps_to_bound += 1
-        # SB3 wrapper on step() requires all these 5 things
-        return obs, reward, terminated, truncated, {'task_failed': task_failed, 'prey_caught': prey_caught, 'prey_escaped': prey_escaped}
-
-
-    def printSummary(self, n_runs):
-        print(f'\n--- Summary over {n_runs} runs ---')
-        print(f'Prey caught:          {self.n_prey_caught}')
-        print(f'Prey escaped:         {self.n_p_e}')
-        print(f'Truncated (timeout):  {self.n_truncated}')
-        print(f'Geofence/obs hits:    {self.n_hit_geofence_or_obs}')
-        print(f'MIN_SEP violations:   {self.n_sep_violations}')
-        print(f'Track violations:     {self.n_track_violations}')
-        print(f'Pred-pred collisions: {self.n_pred_collisions}')
-        print(f'Bound exceeded:       {self.n_bound_exceeded}')
-
-    def actionToAcceleration(self, action):
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        return action * self.max_acceleration
-
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
     def __resetCountsAndFlags(self):
         self.num_episode_steps = 0
         self.n_steps_to_bound = 0
@@ -218,13 +316,14 @@ class GameOfDronesEnv(Env):
                 pred_landed_outside_ws = False
             if not any(predator.hitObs() for predator in self.predators):
                 pred_landed_in_obs = False
-            if not self.__predsViolateSep():
+            sep_violation, _ = self.__predsViolateSep()
+            if not sep_violation:
                 preds_violate_sep = False
             if not self.__anyPredViolatesTrack():
                 preds_violate_track = False
 
     def __mkSpaces(self):
-        total_num_preds = self.num_preds #+ self.num_fake_preds
+        total_num_preds = self.num_preds 
         self.action_space = spaces.Box(-1, 1, shape=(self.num_dims * self.num_preds,))
 
         # agent_velocities: pred velocities + prey velocity
@@ -232,7 +331,8 @@ class GameOfDronesEnv(Env):
             -self.workspace_size , self.workspace_size , shape=(total_num_preds * self.num_dims + self.num_dims,)
         )
 
-        # pred_posz: predz positions - eg for 2 preds in 3D would be a 6-D hyperrectangle, ranging from -10 to 10 in each dim
+        # pred_posz: predz positions - eg for 2 preds in 3D would be a 6-D hyperrectangle, ranging from -10 to 10 in each dim. 
+        # BUT NOTE: actual workspace is detedmined in agent.landedOutsideWS where its curently (-10 -> 10) and (0 -> 10)
         self.pred_posz_space = spaces.Box(
             -self.workspace_size , self.workspace_size , shape=(total_num_preds * self.num_dims,))
         
@@ -270,9 +370,10 @@ class GameOfDronesEnv(Env):
     
 
     '''returns new system state and whether preds collided with each other, geofence, etc'''
-    def __getObservation(self, is_random_action=False):
+    def __getObservation(self, is_random_action=False, predators_clipped_this_step=None):
         _ = self.__findAndKillCollidedPreds()
         task_failed = self.__APredHitGeoFenceOrObs()
+        task_failed_expected = False
         if task_failed:
             # breakpoint()
             # if not is_random_action and self.use_shield:
@@ -280,11 +381,16 @@ class GameOfDronesEnv(Env):
             self.n_hit_geofence_or_obs += 1
             if self.n_hit_geofence_or_obs % 1 == 0: 
                 print('# times hit geofence or obs', self.n_hit_geofence_or_obs)
-        if not task_failed and self.__predsViolateSep():
-            task_failed = True
-            self.n_sep_violations += 1
-            if self.n_sep_violations % 1 == 0:
-                print('# times preds violated MIN_SEP', self.n_sep_violations)
+        if not task_failed:
+            sep_violation, due_to_clipping = self.__predsViolateSep(predators_clipped_this_step=predators_clipped_this_step)
+            if sep_violation:
+                if not due_to_clipping:
+                    self.n_sep_violations += 1
+                    if self.n_sep_violations % 1 == 0:
+                        print('# times preds violated separation bounds', self.n_sep_violations)
+                else:
+                    task_failed_expected = True
+                task_failed = True
         if not task_failed and self.__anyPredViolatesTrack():
             task_failed = True
             self.n_track_violations += 1
@@ -332,7 +438,7 @@ class GameOfDronesEnv(Env):
         #         dist_to_obs.append(pos[1] - self.TObs)   # negative if pred is above obstacle (safe side)
         #     obs['dist_to_obs'] = np.array(dist_to_obs, dtype=np.float32)
 
-        return obs, task_failed
+        return obs, task_failed, task_failed_expected
     
     def __mkDistToWallsObs(self, predator):
         pos = predator.position
@@ -398,17 +504,28 @@ class GameOfDronesEnv(Env):
                 return True
         return False
 
-    '''When DOING_SEP is on, check if any pair of live preds violate MIN_SEP (L-inf distance < MIN_SEP)'''
-    def __predsViolateSep(self):
-        if not self.DOING_SEP or self.MIN_SEP <= 0:
-            return False
-        live_preds = [p for p in self.predators if p.is_live]
-        for i, p1 in enumerate(live_preds):
-            for p2 in live_preds[i+1:]:
-                diff = p1.position - p2.position
-                if np.max(np.abs(diff)) < self.MIN_SEP:
-                    return True
-        return False
+    '''When DOING_SEP is on, check if any pair of live preds violate MIN_SEP or MAX_SEP (L-inf).
+    Returns (violation_occurred, due_to_clipping):
+        (False, False): no violation
+        (True, False): MIN_SEP violation or MAX_SEP violation not involving clipped preds
+        (True, True): MAX_SEP violation involving at least one clipped pred this step
+    '''
+    def __predsViolateSep(self, predators_clipped_this_step=None):
+        if not self.DOING_SEP or (self.MIN_SEP <= 0 and self.MAX_SEP <= 0):
+            return False, False
+        live_preds = [(idx, p) for idx, p in enumerate(self.predators) if p.is_live]
+        for i, (pred1_idx, p1) in enumerate(live_preds):
+            for pred2_idx, p2 in live_preds[i+1:]:
+                linf_dist = np.max(np.abs(p1.position - p2.position))
+                if self.MIN_SEP > 0 and linf_dist < self.MIN_SEP:
+                    return True, False  # MIN_SEP violation is always counted as real
+                if self.MAX_SEP > 0 and linf_dist > self.MAX_SEP:
+                    # Check if this violation involves a clipped predator
+                    clip_involved = predators_clipped_this_step is not None and (
+                        predators_clipped_this_step[pred1_idx] or predators_clipped_this_step[pred2_idx]
+                    )
+                    return True, clip_involved
+        return False, False
 
 
     # set their is_live to false, position to [-1] * num_dims, velocity to [0] * num_dims

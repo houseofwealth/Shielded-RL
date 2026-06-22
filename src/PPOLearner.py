@@ -128,6 +128,7 @@ class PPOLearner(PPO):
             with th.no_grad():
                 obs_tensor = obs_as_tensor(self._last_obs, self.device)
                 action_per_pred, values, log_probs, is_random_action = self.action_selector.getActionForEachAgent(obs_tensor)
+                rollout_obs = self.action_selector.effective_obs
 
             clipped_actions = action_per_pred
             # Clip the actions to avoid out of bound error
@@ -150,16 +151,15 @@ class PPOLearner(PPO):
             # new_obs, rewards, dones, infos = env.step(clipped_actions_for_vec_env, is_random_action)
             new_obs, rewards, dones, infos = env.step(clipped_actions_for_vec_env)
 
-            # Sanity check: with shield on, task_failed should only happen when the shield
-            # failed to find any OK action (is_random_action=True). If it happens on a shielded
-            # action, it may indicate a shield model gap (e.g. wall clipping causing MIN_SEP
-            # violation that the unbounded-space shield model could not anticipate).
+            # Sanity check: with shield on, only warn on unexpected failures.
+            # Expected failures include random fallback steps and env-marked clipping cases.
             if self.use_shield:
-                hit = infos[0].get('task_failed', False)
-                if hit and not is_random_action:
-                    print('**WARNING: task_failed on a shielded action')
-                # if hit and is_random_action:
-                #     print('**WARNING: task_failed on a RANDOM action (shield exhausted all chances)')
+                info0 = infos[0] if infos else {}
+                task_failed = info0.get('task_failed', False)
+                task_failed_expected = info0.get('task_failed_expected', False) or is_random_action
+
+                if task_failed and not task_failed_expected:
+                    print('**WARNING: task_failed on an OK action')
 
             self.num_timesteps += env.num_envs
 
@@ -188,7 +188,7 @@ class PPOLearner(PPO):
                     rewards[idx] += self.gamma * terminal_value
 
             rollout_buffer.add(
-                self._last_obs,  # type: ignore[arg-type]
+                rollout_obs if rollout_obs is not None else self._last_obs,  # type: ignore[arg-type]
                 action_per_pred,
                 rewards,
                 self._last_episode_starts,  # type: ignore[arg-type]

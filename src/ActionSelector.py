@@ -14,6 +14,7 @@ class ActionSelector:
         self.num_chances  = config['env_config']['num_shield_chances']
         self.config       = config
         self.n_agent_fails = 0
+        self.effective_obs = None
 
     def getActionForEachAgent(self, single_obs):
         raise NotImplementedError('Subclasses must implement getActionForEachAgent')

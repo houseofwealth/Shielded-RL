@@ -4,7 +4,7 @@ import torch as th
 from stable_baselines3.common.utils import obs_as_tensor
 from .ActionSelector import ActionSelector
 from .shields.mr_models.model_gd import OK, solnExists
-from .shields.mr_models.model_gd_dist import OKDist
+from .shields.mr_models.model_gd_dist import OKDist, solnExistsDist
 from .shields.mr_models.model_gd_smart_prey import OKTrack, solnExistsTrack
 from .shields.builder.utils import *
 
@@ -21,23 +21,36 @@ class DronesActionSelector(ActionSelector):
 
     def __init__(self, config, policy, env):
         super().__init__(config, policy, env)
+        # Default-on here to avoid touching config files unless you want to override.
+        self.allow_clip_bypass_in_selector = self.config['env_config'].get('allow_clip_bypass_in_selector', True)
+        self.clip_bypass_used = 0
         # if self.env.num_preds > 1:
         #     raise NotImplementedError('Multiple predators not implemented')
 
 
     '''returns triple: action_per_pred, value, log_prob_per_action, of which action_per_pred is a numpy array of vectors of length num_preds <-- OR is it an array of length num_preds*num_dims? b/c i think (eg [1.0,2.0,3.0, 0.1,0.2,0.3] for 2 preds in 3D)'''
     def getActionForEachAgent(self, single_obs):   #obs is a tensor 
-        # single_obs = deepcopy(obs)
+        if self.config['env_config']['use_shield'] and self.env.start_of_episode:
+            single_obs = self.ensureValidInitState(single_obs)
+
+        self.effective_obs = self.tensorObsToNumpyObs(single_obs)
         obss = self.replicateObsNumChancesTimes(single_obs)
         is_random_action = False
-        (action_per_pred, value, log_prob_per_action, failed_to_find_ok_action) = \
+        (action_per_pred, value, log_prob_per_action, failed_to_find_ok_action, policy_batch) = \
             self.getPolicyAction(obss, single_obs)
         if failed_to_find_ok_action:
-            (action_per_pred, value, log_prob_per_action) = \
-                self.getRandomAction(single_obs) 
+            # All candidates in the policy batch failed the shield. Rather than doing a fresh
+            # uniform resample (getRandomAction), pick a random candidate from the already-sampled
+            # policy batch so the executed action stays closer to on-policy.
+            action_per_pred = policy_batch[np.random.randint(len(policy_batch))]
+            action_per_pred_tensor = th.tensor(
+                action_per_pred.reshape(1, self.env.num_preds * self.env.num_dims)
+            ).to(self.policy.device)
+            value, log_prob_per_action, _ = self.policy.evaluate_actions(single_obs, action_per_pred_tensor)
             is_random_action = True
-            # print('had to pick rand action', action_per_pred)
-                # self.getRandomAction(deepcopy(single_obs)) #TBD: remove this 2nd deep copy?
+            self.n_agent_fails += 1
+            if self.n_agent_fails % 1 == 0:
+                print('n_agent_fails', self.n_agent_fails)
 
         assert len(action_per_pred) == self.env.num_preds * self.env.num_dims, 'action is wrong size!'
         return action_per_pred, value, log_prob_per_action, is_random_action
@@ -66,7 +79,7 @@ class DronesActionSelector(ActionSelector):
             self.policy.evaluate_actions(single_obs, 
                                          action_per_pred_as_1_element_2D_array
             )
-        return action_per_pred, values, log_probs, failed_to_find_ok_action
+        return action_per_pred, values, log_probs, failed_to_find_ok_action, actionss
 
 
     def getOKPolicyAction(self, replicated_obs, single_obs):
@@ -100,14 +113,7 @@ class DronesActionSelector(ActionSelector):
         num_dims = self.env.num_dims
         num_preds = self.env.num_preds
 
-        # Get the positions that would result from the actions
-        pred_states = []
-        for pred_idx in range(num_preds):
-            current_position = single_obs['pred_posz'][:, pred_idx * num_dims:(pred_idx + 1) * num_dims].cpu().numpy()
-            current_velocity = single_obs['agent_velocities'][:, pred_idx * num_dims:(pred_idx + 1) * num_dims].cpu().numpy()
-            # print('current_position', current_position,'current_velocity', current_velocity)
-            current_state = np.concatenate((current_position, current_velocity), axis=1).squeeze().tolist()
-            pred_states.append(current_state)
+        pred_states = self.getCurrentPredStates(single_obs, num_preds, num_dims)
 
         # valid_actions = []
         chosen_action_index = -1
@@ -116,22 +122,218 @@ class DronesActionSelector(ActionSelector):
         prey_vel = self.env.prey.velocity.tolist()
         prey_st = prey_pos + prey_vel
 
-        if self.env.start_of_episode:
-          self.env.start_of_episode = False
-          for pred_idx, current_state in enumerate(pred_states):
-            se = solnExists(current_state, prey_st, self.env.STEPS_BOUND)
-            if se: print(f'solnExists pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
-            else: print(f'***WARNING: no solution from pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
-            if self.env.TRACKING_PREY:
-              se_t = solnExistsTrack(current_state, prey_st)
-              if se_t: print(f'solnExistsTrack pred {pred_idx}', current_state, prey_st)
-              else: print(f'***WARNING: no tracking soln from pred {pred_idx}', current_state, prey_st)
-
         steps_remaining = self.env.STEPS_BOUND - self.env.n_steps_to_bound
 
-        # Independent per-predator selection: scan all samples for each predator separately.
+        # First prefer a sampled joint action that already passes all enabled shields.
+        for num, action in enumerate(actions):
+            joint_acc = self.env.actionToAcceleration(action.tolist())
+            unary_guards_passed, guarded_accels, any_accel_overridden = self.checkUnaryGuards(
+                joint_acc, pred_states, prey_st, steps_remaining, num_preds, num_dims)
+
+            if not unary_guards_passed:
+                continue    #onto next action choice, this one failed
+
+            if not self.checkBinaryGuards(guarded_accels, pred_states, num_preds):
+                continue    #onto next action choice, this one failed 
+
+            if num > 0 or any_accel_overridden:
+                for pred in self.env.predators:
+                    pred.shield_was_used_in_step = True
+
+            if not any_accel_overridden:
+                return num
+
+            actions[0] = self.composeNewJointAction(action, guarded_accels, num_preds, num_dims)
+            return 0
+
+        # Fallback: if it got to here, scan all samples for each predator separately and compose a joint action.
         # chosen_per_pred[pred_idx] = (acc_to_use, is_replaced, sample_index)
         # This reduces effective joint rejection rate from p^num_preds to p.
+        # its a kind of diagonalization
+        print('*Failed to find an acceptable action tuple - trying each pred separately')
+        chosen_per_pred = self.findActionForEachPredSeparately(
+            actions, pred_states, prey_st, steps_remaining, num_preds, num_dims)
+        if chosen_per_pred is None:
+            return -1
+
+        # Did the shield have to do anything?
+        sample_indices  = [chosen_per_pred[i][2] for i in range(num_preds)]
+        any_replaced    = any(chosen_per_pred[i][1] for i in range(num_preds))
+        all_same_sample = len(set(sample_indices)) == 1
+
+        shield_needed = any_replaced or not all_same_sample or sample_indices[0] > 0
+        if shield_needed:
+            for pred in self.env.predators:
+                pred.shield_was_used_in_step = True
+
+        if not any_replaced and all_same_sample:
+            # All predators passed from the same joint sample with no overrides — use it directly
+            chosen_action_index = sample_indices[0]
+        else:
+            # Compose a joint action from the per-predator winners
+            guarded_accels = [chosen_per_pred[pred_idx][0] for pred_idx in range(num_preds)]
+            actions[0] = self.composeNewJointAction(actions[0], guarded_accels, num_preds, num_dims)
+            chosen_action_index = 0
+
+        return chosen_action_index    
+
+
+    def ensureValidInitState(self, single_obs):
+        if not self.env.start_of_episode:
+            return single_obs
+
+        max_init_resamples = self.config['env_config']['max_init_resamples']
+        for _ in range(max_init_resamples):
+            pred_states = self.getCurrentPredStates(single_obs, self.env.num_preds, self.env.num_dims)
+            prey_st = self.env.prey.position.tolist() + self.env.prey.velocity.tolist()
+
+            if self.checkInvInitState(pred_states, prey_st, self.env.num_preds):
+                self.env.start_of_episode = False
+                return single_obs
+
+            raw_obs = self.env.resamplePredatorsForShieldInit()
+            single_obs = self.envObsToTensor(raw_obs)
+
+        raise RuntimeError('Unable to sample shield-feasible initial predator state')
+
+    def envObsToTensor(self, obs):
+        return obs_as_tensor(self.batchEnvObs(obs), self.policy.device)
+
+    def batchEnvObs(self, obs):
+        return {
+            key: np.expand_dims(value, axis=0)
+            for key, value in obs.items()
+        }
+
+    def tensorObsToNumpyObs(self, obs):
+        return {
+            key: value.detach().cpu().numpy()
+            for key, value in obs.items()
+        }
+
+
+    def getCurrentPredStates(self, single_obs, num_preds, num_dims):
+        pred_states = []
+        for pred_idx in range(num_preds):
+            current_position = single_obs['pred_posz'][:, pred_idx * num_dims:(pred_idx + 1) * num_dims].cpu().numpy()
+            current_velocity = single_obs['agent_velocities'][:, pred_idx * num_dims:(pred_idx + 1) * num_dims].cpu().numpy()
+            # print('current_position', current_position,'current_velocity', current_velocity)
+            current_state = np.concatenate((current_position, current_velocity), axis=1).squeeze().tolist()
+            pred_states.append(current_state)
+        return pred_states
+
+    def checkInvInitState(self, pred_states, prey_st, num_preds):
+        init_state_ok = True
+        for pred_idx, current_state in enumerate(pred_states):
+            se = solnExists(current_state, prey_st, self.env.STEPS_BOUND)
+            if se: print(f'solnExists pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
+            else:
+                print(f'***WARNING: no solution from pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
+                init_state_ok = False
+            if self.env.TRACKING_PREY:
+                se_t = solnExistsTrack(current_state, prey_st)
+                if se_t: print(f'solnExistsTrack pred {pred_idx}', current_state, prey_st)
+                else:
+                    print(f'***WARNING: no tracking soln from pred {pred_idx}', current_state, prey_st)
+                    init_state_ok = False
+        if self.env.DOING_SEP and num_preds > 1:
+            for i in range(num_preds):
+                for j in range(i + 1, num_preds):
+                    se_d = solnExistsDist(pred_states[i], pred_states[j])
+                    if se_d: print(f'solnExistsDist pair {i},{j}', pred_states[i], pred_states[j])
+                    else:
+                        print(f'***WARNING: no separation soln from pair {i},{j}', pred_states[i], pred_states[j])
+                        init_state_ok = False
+        return init_state_ok
+
+    def checkUnaryGuards(self, joint_acc, pred_states, prey_st, steps_remaining, num_preds, num_dims):
+        guarded_accels = []
+        # any_accel_overridden is needed b/c OK can sometimes return a specific action value rather than just a Bool, in which case a new modified tuple has to be constructed
+        any_accel_overridden = False
+        unary_guards_passed = True
+
+        for pred_idx in range(num_preds):
+            pred_acc = joint_acc[pred_idx * num_dims:(pred_idx + 1) * num_dims]
+
+            res = OK(pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
+            if not res:
+                unary_guards_passed = False
+                break
+
+            if res != True and len(res) == num_dims:
+                acc_to_use = res
+                any_accel_overridden = True
+            else:
+                acc_to_use = pred_acc
+
+            if self.env.TRACKING_PREY:
+                if not OKTrack(acc_to_use, pred_states[pred_idx], prey_st):
+                    unary_guards_passed = False
+                    break
+
+            guarded_accels.append(acc_to_use)
+
+        return unary_guards_passed, guarded_accels, any_accel_overridden
+
+    def __clippedNextStateSatisfiesInvariant(self, actual_next_state, prey_st, num_preds):
+        pred_positions = actual_next_state['pred_positions']
+        pred_velocities = actual_next_state['pred_velocities']
+
+        if self.env.DOING_SEP and num_preds > 1:
+            for i in range(num_preds):
+                for j in range(i + 1, num_preds):
+                    actual_st_i = pred_positions[i].tolist() + pred_velocities[i].tolist()
+                    actual_st_j = pred_positions[j].tolist() + pred_velocities[j].tolist()
+                    if not solnExistsDist(actual_st_i, actual_st_j):
+                        return False
+
+        if self.env.TRACKING_PREY:
+            for i in range(num_preds):
+                actual_st_i = pred_positions[i].tolist() + pred_velocities[i].tolist()
+                if not solnExistsTrack(actual_st_i, prey_st):
+                    return False
+
+        return True
+
+    def checkBinaryGuards(self, guarded_accels, pred_states, num_preds):
+        joint_acc = np.asarray(guarded_accels, dtype=float).reshape(num_preds * self.env.num_dims)
+        transition_state = self.env.getCalculatedAndActualNextState(
+            joint_acceleration=joint_acc,
+            pred_states=pred_states,
+        )
+        actual_next_state = transition_state['actual_next_state']
+        which_preds_clipped = transition_state['which_preds_clipped']
+
+        if np.any(which_preds_clipped) and not self.allow_clip_bypass_in_selector:
+            return False
+
+        if np.any(which_preds_clipped):
+            self.clip_bypass_used += 1
+
+            # Clip-involved moves are validated against the invariant on actual post-clip states. That is, will the clipped position ensure a future move always possible
+            prey_st = self.env.prey.position.tolist() + self.env.prey.velocity.tolist()
+            if not self.__clippedNextStateSatisfiesInvariant(actual_next_state, prey_st, num_preds):
+                return False
+            return True
+
+        # no clipping, standard okdist check.
+        if self.env.DOING_SEP and num_preds > 1:
+            for i in range(num_preds):
+                for j in range(i + 1, num_preds):
+                    if not OKDist(guarded_accels[i], pred_states[i], guarded_accels[j], pred_states[j]):
+                        return False
+
+        return True
+
+    '''in bounded reachability case at the last step shield returns the reqd action'''
+    def composeNewJointAction(self, action, guarded_accels, num_preds, num_dims):
+        composed = list(action.tolist())
+        for pred_idx in range(num_preds):
+            acc = guarded_accels[pred_idx]
+            composed[pred_idx * num_dims:(pred_idx + 1) * num_dims] = self.acclerationToAction(acc)
+        return composed
+
+    def findActionForEachPredSeparately(self, actions, pred_states, prey_st, steps_remaining, num_preds, num_dims):
         chosen_per_pred = {}
 
         for pred_idx in range(num_preds):
@@ -160,40 +362,13 @@ class DronesActionSelector(ActionSelector):
 
         # If any predator exhausted all samples, signal failure
         if len(chosen_per_pred) < num_preds:
-            return -1
+            return None
 
-        # Pairwise separation check on composed per-pred selections (best-effort: does not
-        # re-search if it fails, since DOING_SEP is typically False)
-        if self.env.DOING_SEP and num_preds > 1:
-            for i in range(num_preds):
-                for j in range(i + 1, num_preds):
-                    if not OKDist(chosen_per_pred[i][0], pred_states[i],
-                                  chosen_per_pred[j][0], pred_states[j]):
-                        return -1
+        guarded_accels = [chosen_per_pred[pred_idx][0] for pred_idx in range(num_preds)]
+        if not self.checkBinaryGuards(guarded_accels, pred_states, num_preds):
+            return None
 
-        # Did the shield have to do anything?
-        sample_indices  = [chosen_per_pred[i][2] for i in range(num_preds)]
-        any_replaced    = any(chosen_per_pred[i][1] for i in range(num_preds))
-        all_same_sample = len(set(sample_indices)) == 1
-
-        shield_needed = any_replaced or not all_same_sample or sample_indices[0] > 0
-        if shield_needed:
-            for pred in self.env.predators:
-                pred.shield_was_used_in_step = True
-
-        if not any_replaced and all_same_sample:
-            # All predators passed from the same joint sample with no overrides — use it directly
-            chosen_action_index = sample_indices[0]
-        else:
-            # Compose a joint action from the per-predator winners
-            composed = list(actions[0].tolist())
-            for pred_idx in range(num_preds):
-                acc = chosen_per_pred[pred_idx][0]
-                composed[pred_idx * num_dims:(pred_idx + 1) * num_dims] = self.acclerationToAction(acc)
-            actions[0] = composed
-            chosen_action_index = 0
-
-        return chosen_action_index    
+        return chosen_per_pred
 
 
     #actions are normalized values
@@ -205,6 +380,7 @@ class DronesActionSelector(ActionSelector):
         return action
 
 
+    '''UNUSED?
     def getRandomAction(self, single_obs):
         # Get the actions
         actionss = self.sampleFromUniformDistrib(single_obs)
@@ -214,7 +390,7 @@ class DronesActionSelector(ActionSelector):
             chosen_action_index = 0
         # if (num == self.num_chances - 1):
             self.n_agent_fails += 1
-            if self.n_agent_fails % 100 == 0:
+            if self.n_agent_fails % 1 == 0:
                 print('n_agent_fails', self.n_agent_fails)
 
         action_per_pred = actionss[chosen_action_index]
@@ -225,7 +401,7 @@ class DronesActionSelector(ActionSelector):
                 # 1st dim is just one b/c have only one env
                 th.tensor(action_per_pred.reshape(1, self.env.num_preds * self.env.num_dims)).to(self.policy.device))
         return action_per_pred, values, log_probs
-
+    '''
 
     '''Draw <num_chances> random actions 1 per pred from uniform distribution'''
     def sampleFromUniformDistrib(self, single_obs):
