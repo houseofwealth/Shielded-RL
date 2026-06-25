@@ -36,24 +36,30 @@ class DronesActionSelector(ActionSelector):
         self.effective_obs = self.tensorObsToNumpyObs(single_obs)
         obss = self.replicateObsNumChancesTimes(single_obs)
         is_random_action = False
-        (action_per_pred, value, log_prob_per_action, failed_to_find_ok_action, policy_batch) = \
+        (action_per_pred, value, log_prob_per_action, failed_to_find_ok_action) = \
             self.getPolicyAction(obss, single_obs)
         if failed_to_find_ok_action:
-            # All candidates in the policy batch failed the shield. Rather than doing a fresh
-            # uniform resample (getRandomAction), pick a random candidate from the already-sampled
-            # policy batch so the executed action stays closer to on-policy.
-            action_per_pred = policy_batch[np.random.randint(len(policy_batch))]
-            action_per_pred_tensor = th.tensor(
-                action_per_pred.reshape(1, self.env.num_preds * self.env.num_dims)
-            ).to(self.policy.device)
-            value, log_prob_per_action, _ = self.policy.evaluate_actions(single_obs, action_per_pred_tensor)
+            # All candidates in the policy batch failed the shield. Resample from
+            # uniform distribution and try the shield again; if that also fails,
+            # fall back to the first uniform sample.
+            action_per_pred, value, log_prob_per_action = self.getRandomAction(single_obs)
             is_random_action = True
-            self.n_agent_fails += 1
-            if self.n_agent_fails % 1 == 0:
-                print('n_agent_fails', self.n_agent_fails)
 
         assert len(action_per_pred) == self.env.num_preds * self.env.num_dims, 'action is wrong size!'
         return action_per_pred, value, log_prob_per_action, is_random_action
+
+    '''Tried this idea was that rather than a fresh batch which will be outside the probability distribution of the policy, better for learning to pick one from within, gives better gradients, but didnt work in practice b/c selecting an action that already failed the shield means that it will fail to re-establish the invariant leading to cascading failures and messing up the learing rate for the policy, so ultimately abandoned this approach.
+    def randomlySampleAction(self, single_obs, policy_batch):
+        action_per_pred = policy_batch[np.random.randint(len(policy_batch))]
+        action_per_pred_tensor = th.tensor(
+            action_per_pred.reshape(1, self.env.num_preds * self.env.num_dims)
+        ).to(self.policy.device)
+        value, log_prob_per_action, _ = self.policy.evaluate_actions(single_obs, action_per_pred_tensor)
+        self.n_agent_fails += 1
+        if self.n_agent_fails % 1 == 0:
+            print('n_agent_fails', self.n_agent_fails)
+        return action_per_pred, value, log_prob_per_action
+    '''
 
 
     '''this along with all the other "action" methods below return an action per pred'''
@@ -79,7 +85,7 @@ class DronesActionSelector(ActionSelector):
             self.policy.evaluate_actions(single_obs, 
                                          action_per_pred_as_1_element_2D_array
             )
-        return action_per_pred, values, log_probs, failed_to_find_ok_action, actionss
+        return action_per_pred, values, log_probs, failed_to_find_ok_action
 
 
     def getOKPolicyAction(self, replicated_obs, single_obs):
@@ -150,10 +156,11 @@ class DronesActionSelector(ActionSelector):
         # chosen_per_pred[pred_idx] = (acc_to_use, is_replaced, sample_index)
         # This reduces effective joint rejection rate from p^num_preds to p.
         # its a kind of diagonalization
-        print('*Failed to find an acceptable action tuple - trying each pred separately')
+        # print('*Failed to find an acceptable action tuple - trying each pred separately')
         chosen_per_pred = self.findActionForEachPredSeparately(
             actions, pred_states, prey_st, steps_remaining, num_preds, num_dims)
         if chosen_per_pred is None:
+            # print('*Failed to find an acceptable action tuple but trying each pred separately also failed')
             return -1
 
         # Did the shield have to do anything?
@@ -380,7 +387,6 @@ class DronesActionSelector(ActionSelector):
         return action
 
 
-    '''UNUSED?
     def getRandomAction(self, single_obs):
         # Get the actions
         actionss = self.sampleFromUniformDistrib(single_obs)
@@ -401,7 +407,6 @@ class DronesActionSelector(ActionSelector):
                 # 1st dim is just one b/c have only one env
                 th.tensor(action_per_pred.reshape(1, self.env.num_preds * self.env.num_dims)).to(self.policy.device))
         return action_per_pred, values, log_probs
-    '''
 
     '''Draw <num_chances> random actions 1 per pred from uniform distribution'''
     def sampleFromUniformDistrib(self, single_obs):
