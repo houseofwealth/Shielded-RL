@@ -178,15 +178,11 @@ BR = []
 safetyProps = Geofencing + ObstacleAvoid # + BR    #the invariant to be maintained
 
 
-def OK(
-  agent_action,
-  curr_st,
-  prey_st,
-  bound,
-  doing_bounded=DOING_BOUNDED,
-  doing_obstacles=DOING_OBSTACLES,
-  geofencing=GEOFENCING
-  ):
+def OK(config, agent_action, curr_st, prey_st, bound):
+  ec = config['env_config']
+  doing_bounded = ec['DOING_BOUNDED']
+  doing_obstacles = ec['DOING_OBSTACLES']
+  geofencing = ec['GEOFENCING']
 
   for constraint in [doing_bounded, doing_obstacles, geofencing]:
     assert isinstance(constraint, bool), 'Constraints must be boolean: ' + str(constraint)
@@ -197,7 +193,7 @@ def OK(
   if geofencing:
     ok = ok and OKGeo(agent_action, curr_st)
   if doing_bounded:
-    if ok: ok = OKBR(agent_action, curr_st, prey_st, bound) #this fn may return a list too
+    if ok: ok = OKBR(config, agent_action, curr_st, prey_st, bound) #this fn may return a list too
   return ok
 
 # workspace_size =  10
@@ -302,7 +298,11 @@ def OKObs(agent_action, curr_st):
    Not(-6 <= -1*y + -3*v_y + -5/2*a_y),
    Not(10/3 <= 2/3*y + 2*v_y + 5/3*a_y)) """
 
-def OKBR(agent_action, curr_st, prey_st, bound):
+def OKBR(config, agent_action, curr_st, prey_st, bound):
+  ec = config['env_config']
+  KILL_RADIUS = ec['KILL_RADIUS']
+  DOING_OBSTACLES = ec['DOING_OBSTACLES']
+  GEOFENCING = ec['GEOFENCING']
   # print('bound', bound)
   a_x,a_y = agent_action
   # x,y, v_x,v_y = curr_st
@@ -371,7 +371,11 @@ else:
   new_acc_z = []
 
 # -----------
-def solnExists(curr_st, prey_st, bound):
+def solnExists(config, curr_st, prey_st, bound):
+  ec = config['env_config']
+  DOING_OBSTACLES = ec['DOING_OBSTACLES']
+  GEOFENCING = ec['GEOFENCING']
+  DOING_BOUNDED = ec['DOING_BOUNDED']
   ok = True
   # ok = implies(DOING_OBSTACLES, solnExistsObsPy(curr_st))
   # ok = ok and implies(GEOFENCING, solnExistsGeoPy(curr_st))
@@ -381,7 +385,7 @@ def solnExists(curr_st, prey_st, bound):
   if GEOFENCING:
     ok = ok and solnExistsGeoPy(curr_st)
   if DOING_BOUNDED:
-    which_ones = solnExistsBRPy(curr_st, prey_st, bound) 
+    which_ones = solnExistsBRPy(config, curr_st, prey_st, bound) 
     if not any(which_ones) or not ok:
       return False
     else:
@@ -409,7 +413,8 @@ def solnExistsGeoPy(curr_st):
           2/3*x + 4/3*v_x <= 20,
           -1*x + -2*v_x <= 30])
 
-def solnExistsBRPy(curr_st, prey_st, bound):
+def solnExistsBRPy(config, curr_st, prey_st, bound):
+  KILL_RADIUS = config['env_config']['KILL_RADIUS']
   if KILL_RADIUS == 1: return solnExistsBR_TGT_RAD_1Py(curr_st, prey_st, bound)
   else: 
     assert KILL_RADIUS < 1, "KILL_RADIUS can no more than 1"
@@ -492,14 +497,14 @@ if __name__ == "__main__":
   curr_st = [9.0, 7.59532356262207, 1.7186055183410645, 4.43661117553711] #[5.0, 0.0, 0.0, 0.0]
   # prey_pos = [0.0, 7.0] #[-1.0, 2.0]
   prey_st = [0.0, 10.0, 0.0, -5.0] #[-1.0, 2.0]
-  which_ones = solnExists(curr_st, prey_st, BOUND)
+  which_ones = solnExists(DEFAULT_CONFIG, curr_st, prey_st, BOUND)
   print(which_ones)
   if which_ones and which_ones != True:
     for bound,bound_solvable in enumerate(which_ones):
       if bound_solvable:
     # if soln:
         action = [-5.0, -5.0] #[ 8.67989302, -4.5718205 ]
-        actionOK = OKBR(action, curr_st, prey_st, bound)
+        actionOK = OKBR(DEFAULT_CONFIG, action, curr_st, prey_st, bound)
         print('actionOK', actionOK)
 
 

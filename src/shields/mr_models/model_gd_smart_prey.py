@@ -133,11 +133,15 @@ def fnOr(xs):  return any(xs)
 def fnAnd(xs): return all(xs)
 
 
-def solnExistsTrack(curr_st_pred, curr_st_prey):
+def solnExistsTrack(config, curr_st_pred, curr_st_prey):
     """State invariant for predator-prey tracking (∃∀ synthesis, MAX_TRACK_DIST=10).
     Returns True iff the current relative state lies in the synthesised invariant region.
     Synthesised node invariant at fixpoint (iteration 4).
     """
+    ec = config['env_config']
+    MAX_TRACK_DIST = ec.get('MAX_TRACK_DIST', 8)
+    MIN_TRACK_DIST = ec.get('MIN_TRACK_DIST', -1)
+    A_PREY_MAX     = ec.get('A_PREY_MAX', ec['max_acceleration'] // 2)
     x_pred, y_pred, vx_pred, vy_pred = curr_st_pred
     x_prey, y_prey, vx_prey, vy_prey = curr_st_prey
 
@@ -170,7 +174,7 @@ def solnExistsTrack(curr_st_pred, curr_st_prey):
     ])
 
 
-def OKTrack(agent_action, curr_st_pred, curr_st_prey):
+def OKTrack(config, agent_action, curr_st_pred, curr_st_prey):
     """Runtime tracking check (∃∀ synthesis, MAX_TRACK_DIST=10, A_PREY_MAX=5).
     Returns True iff agent_action keeps the relative state in the tracking invariant
     regardless of worst-case prey acceleration.
@@ -197,6 +201,10 @@ def OKTrack(agent_action, curr_st_pred, curr_st_prey):
      14  -15/2 <= 3*diffv_y  + diffy  + 5/2*a_pred_y
      15  -3  <= -a_pred_x  - 2/5*diffx  - 6/5*diffv_x
     """
+    ec = config['env_config']
+    MAX_TRACK_DIST = ec.get('MAX_TRACK_DIST', 8)
+    MIN_TRACK_DIST = ec.get('MIN_TRACK_DIST', -1)
+    A_PREY_MAX     = ec.get('A_PREY_MAX', ec['max_acceleration'] // 2)
     apx, apy = agent_action
     x_pred, y_pred, vx_pred, vy_pred = curr_st_pred
     x_prey, y_prey, vx_prey, vy_prey = curr_st_prey

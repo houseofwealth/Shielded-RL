@@ -736,7 +736,11 @@ def OKDist_MIN_SEP_1_MAX_SEP_20(agent1_action, curr_st1, agent2_action, curr_st2
 
 
 '''------------------- Dispatch functions ---------------------------------'''
-def solnExistsDist(curr_st1, curr_st2):
+def solnExistsDist(config, curr_st1, curr_st2):
+    ec = config['env_config']
+    DOING_SEP = ec.get('DOING_SEP', False)
+    MIN_SEP   = ec.get('MIN_SEP', -1)
+    MAX_SEP   = ec.get('MAX_SEP', -1)
     if not DOING_SEP:
         return True
 
@@ -744,7 +748,7 @@ def solnExistsDist(curr_st1, curr_st2):
         f'solnExistsDist: unsupported DIFFA_MAX={DIFFA_MAX}; expected 20'
     )
 
-    if MIN_SEP in (0.1, 0.5):
+    if MIN_SEP == 0.1:
         return solnExistsDist_MIN_SEP_0point1(curr_st1, curr_st2)
     elif MIN_SEP == 1:
         if MAX_SEP == 5:
@@ -765,7 +769,11 @@ def solnExistsDist(curr_st1, curr_st2):
         assert False, f'solnExistsDist: unsupported MIN_SEP={MIN_SEP}, MAX_SEP={MAX_SEP}'
 
 
-def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
+def OKDist(config, agent1_action, curr_st1, agent2_action, curr_st2):
+    ec = config['env_config']
+    DOING_SEP = ec.get('DOING_SEP', False)
+    MIN_SEP   = ec.get('MIN_SEP', -1)
+    MAX_SEP   = ec.get('MAX_SEP', -1)
     if not DOING_SEP:
         return True
 
@@ -773,7 +781,7 @@ def OKDist(agent1_action, curr_st1, agent2_action, curr_st2):
         f'OKDist: unsupported DIFFA_MAX={DIFFA_MAX}; expected 20'
     )
 
-    if MIN_SEP in (0.1, 0.5):
+    if MIN_SEP == 0.1:
         return OKDist_MIN_SEP_0point1(agent1_action, curr_st1, agent2_action, curr_st2)
     elif MIN_SEP == 1:
         if MAX_SEP == 5:

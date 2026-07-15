@@ -232,13 +232,13 @@ class DronesActionSelector(ActionSelector):
     def checkInvInitState(self, pred_states, prey_st, num_preds):
         init_state_ok = True
         for pred_idx, current_state in enumerate(pred_states):
-            se = solnExists(current_state, prey_st, self.env.STEPS_BOUND)
+            se = solnExists(self.config, current_state, prey_st, self.env.STEPS_BOUND)
             if se: print(f'solnExists pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
             else:
                 print(f'***WARNING: no solution from pred {pred_idx}', current_state, prey_st, self.env.STEPS_BOUND)
                 init_state_ok = False
             if self.env.TRACKING_PREY:
-                se_t = solnExistsTrack(current_state, prey_st)
+                se_t = solnExistsTrack(self.config, current_state, prey_st)
                 if se_t: print(f'solnExistsTrack pred {pred_idx}', current_state, prey_st)
                 else:
                     print(f'***WARNING: no tracking soln from pred {pred_idx}', current_state, prey_st)
@@ -246,7 +246,7 @@ class DronesActionSelector(ActionSelector):
         if self.env.DOING_SEP and num_preds > 1:
             for i in range(num_preds):
                 for j in range(i + 1, num_preds):
-                    se_d = solnExistsDist(pred_states[i], pred_states[j])
+                    se_d = solnExistsDist(self.config, pred_states[i], pred_states[j])
                     if se_d: print(f'solnExistsDist pair {i},{j}', pred_states[i], pred_states[j])
                     else:
                         print(f'***WARNING: no separation soln from pair {i},{j}', pred_states[i], pred_states[j])
@@ -262,7 +262,7 @@ class DronesActionSelector(ActionSelector):
         for pred_idx in range(num_preds):
             pred_acc = joint_acc[pred_idx * num_dims:(pred_idx + 1) * num_dims]
 
-            res = OK(pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
+            res = OK(self.config, pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
             if not res:
                 unary_guards_passed = False
                 break
@@ -274,7 +274,7 @@ class DronesActionSelector(ActionSelector):
                 acc_to_use = pred_acc
 
             if self.env.TRACKING_PREY:
-                if not OKTrack(acc_to_use, pred_states[pred_idx], prey_st):
+                if not OKTrack(self.config, acc_to_use, pred_states[pred_idx], prey_st):
                     unary_guards_passed = False
                     break
 
@@ -291,13 +291,13 @@ class DronesActionSelector(ActionSelector):
                 for j in range(i + 1, num_preds):
                     actual_st_i = pred_positions[i].tolist() + pred_velocities[i].tolist()
                     actual_st_j = pred_positions[j].tolist() + pred_velocities[j].tolist()
-                    if not solnExistsDist(actual_st_i, actual_st_j):
+                    if not solnExistsDist(self.config, actual_st_i, actual_st_j):
                         return False
 
         if self.env.TRACKING_PREY:
             for i in range(num_preds):
                 actual_st_i = pred_positions[i].tolist() + pred_velocities[i].tolist()
-                if not solnExistsTrack(actual_st_i, prey_st):
+                if not solnExistsTrack(self.config, actual_st_i, prey_st):
                     return False
 
         return True
@@ -327,7 +327,7 @@ class DronesActionSelector(ActionSelector):
         if self.env.DOING_SEP and num_preds > 1:
             for i in range(num_preds):
                 for j in range(i + 1, num_preds):
-                    if not OKDist(guarded_accels[i], pred_states[i], guarded_accels[j], pred_states[j]):
+                    if not OKDist(self.config, guarded_accels[i], pred_states[i], guarded_accels[j], pred_states[j]):
                         return False
 
         return True
@@ -348,7 +348,7 @@ class DronesActionSelector(ActionSelector):
                 joint_acc = self.env.actionToAcceleration(action.tolist())
                 pred_acc = joint_acc[pred_idx * num_dims:(pred_idx + 1) * num_dims]
 
-                res = OK(pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
+                res = OK(self.config, pred_acc, pred_states[pred_idx], prey_st, steps_remaining)
                 if not res:
                     continue
 
@@ -361,7 +361,7 @@ class DronesActionSelector(ActionSelector):
                     is_replaced = False
 
                 if self.env.TRACKING_PREY:
-                    if not OKTrack(acc_to_use, pred_states[pred_idx], prey_st):
+                    if not OKTrack(self.config, acc_to_use, pred_states[pred_idx], prey_st):
                         continue
 
                 chosen_per_pred[pred_idx] = (acc_to_use, is_replaced, num)

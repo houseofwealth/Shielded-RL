@@ -59,7 +59,7 @@ DEFAULT_CONFIG = {
         'MAX_EPISODE_STEPS':    20,
         'max_acceleration':     10,                           
         'workspace_size':       10,
-        'GEOFENCING' :          False,
+        'GEOFENCING' :          True,
         'DOING_OBSTACLES':      False, 
         'DOING_BOUNDED':        False,
         'STEPS_BOUND':          3,
@@ -74,12 +74,12 @@ DEFAULT_CONFIG = {
         # 'CHECKING_COLLISIONS':  True, # whether shield should check for collisions (not whether collisions should be fatal)
 
         # --- min max separation between preds ---
-        'DOING_SEP':            False, # enable pred-pred separation shield (OKDist)
+        'DOING_SEP':            True, # enable pred-pred separation shield (OKDist)
         'MIN_SEP':              1, #0.1,     # predators must stay at least this far apart (collision avoidance); -1 to disable. Set small non zero value if all you want is to shield against pred collisions
         'MAX_SEP':              15, #-1,    # predators must stay within this distance of each other (L-inf); -1 to disable
 
         # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
-        'TRACKING_PREY':        True, # enable smart prey: adversarial prey acceleration + OKTrack shield
+        'TRACKING_PREY':        False, # enable smart prey: adversarial prey acceleration + OKTrack shield
         'A_PREY_MAX':           5,     # max prey acceleration per axis (7 is max for \E \A)
         'MAX_TRACK_DIST':       10,    # predator must stay within this L-inf distance of prey; -1 to disable
         'MIN_TRACK_DIST':       -1,    # predator-prey min separation; -1 to disable.
