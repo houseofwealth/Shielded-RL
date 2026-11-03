@@ -5,9 +5,9 @@ from .ActionSelector import ActionSelector
 XX_XXX = True   # True  → 4-counter (o,c,p,d)  XX+XXX model
                 # False → 2-counter (t,s)      XX-only model
 if XX_XXX:
-    from .shields.mr_models.model_water_tank_XX_XXX import *
+    from .shielding.mr_models.model_water_tank_XX_XXX import *
 else:
-    from .shields.mr_models.model_water_tank_XX import *
+    from .shielding.mr_models.model_water_tank_XX import *
 
 
 # ---------------------------------------------------------------------------

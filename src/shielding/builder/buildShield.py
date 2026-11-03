@@ -29,9 +29,9 @@ from .utils import *
 # from model_plan import *
 # from model_Cinderella import *
 # from model_water_tank_XX_XXX_simp import *
-# from shields.mr_models.model_gd import *
-from shields.mr_models.model_gd_dist import *
-# from shields.mr_models.model_gd_smart_prey import *
+# from shielding.mr_models.model_gd import *
+from shielding.mr_models.model_gd_dist import *
+# from shielding.mr_models.model_gd_smart_prey import *
 
 DBG2 = True; DBG3=False
 moreWork = True  # declaring a global, used to signal that something changed in an iteration

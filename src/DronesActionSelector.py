@@ -3,10 +3,10 @@ import numpy as np
 import torch as th
 from stable_baselines3.common.utils import obs_as_tensor
 from .ActionSelector import ActionSelector
-from .shields.mr_models.model_gd import OK, solnExists
-from .shields.mr_models.model_gd_dist import OKDist, solnExistsDist
-from .shields.mr_models.model_gd_smart_prey import OKTrack, solnExistsTrack
-from .shields.builder.utils import *
+from .shielding.mr_models.model_gd import OK, solnExists
+from .shielding.mr_models.model_gd_dist import OKDist, solnExistsDist
+from .shielding.mr_models.model_gd_smart_prey import OKTrack, solnExistsTrack
+from .shielding.builder.utils import *
 
 
 class DronesActionSelector(ActionSelector):
