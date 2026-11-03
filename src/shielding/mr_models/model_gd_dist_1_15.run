@@ -1,0 +1,908 @@
+DOING_SEP = True
+MAX_SEP = 15   MIN_SEP = 1
+Refining Model predator-predator separation (relative coords), 2-D
+
+Initializing node [arc] label with state [step] property
+ diffx >= -15
+ on node main
+--> strengthened node label:
+ diffx >= -15
+
+Initializing node [arc] label with state [step] property
+ diffx <= 15
+ on node main
+--> strengthened node label:
+ And(diffx >= -15, diffx <= 15)
+
+Initializing node [arc] label with state [step] property
+ diffy >= -15
+ on node main
+--> strengthened node label:
+ And(diffx >= -15, diffx <= 15, diffy >= -15)
+
+Initializing node [arc] label with state [step] property
+ diffy <= 15
+ on node main
+--> strengthened node label:
+ And(diffx >= -15, diffx <= 15, diffy >= -15, diffy <= 15)
+
+Initializing node [arc] label with state [step] property
+ Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1)
+ on node main
+--> strengthened node label:
+ And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1))
+
+----------------
+iteration 0
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1))
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   5   diffv_xX == diffv_x + diffa_x*1
+   6   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   7   diffv_yX == diffv_y + diffa_y*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc relative_accelerate
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx + diffv_x*1 + ((diffa_x*1)/2)*1,
+                       diffv_xX == diffv_x + diffa_x*1,
+                       diffyX ==
+                       diffy + diffv_y*1 + ((diffa_y*1)/2)*1,
+                       diffv_yX == diffv_y + diffa_y*1),
+                   True),
+               And(diffxX >= -15,
+                   diffxX <= 15,
+                   diffyX >= -15,
+                   diffyX <= 15,
+                   Or(diffxX >= 1,
+                      diffxX <= -1,
+                      diffyX >= 1,
+                      diffyX <= -1))))
+wpc:
+And(diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+No env vars on node main or action relative_accelerate
+env wrapped formula:
+ And(diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+guard of relative_accelerate :
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20)
+new unoptimized guard:
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+newActGuard (simplified residue wrt inv):
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+newActGuardDelta (residue of NewActGuard): [diffx + diffv_x + 1/2*diffa_x >= -15,
+ diffx + diffv_x + 1/2*diffa_x <= 15,
+ diffy + diffv_y + 1/2*diffa_y >= -15,
+ diffy + diffv_y + 1/2*diffa_y <= 15,
+ Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+    diffy + diffv_y + 1/2*diffa_y >= 1,
+    diffx + diffv_x + 1/2*diffa_x >= 1,
+    diffx + diffv_x + 1/2*diffa_x <= -1)]
+ctrlPred= And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+ctrl wrapped formula:
+ Exists([diffa_x, diffa_y],
+       And(diffa_x >= -20,
+           diffa_x <= 20,
+           diffa_y >= -20,
+           diffa_y <= 20,
+           diffx + diffv_x + 1/2*diffa_x >= -15,
+           diffx + diffv_x + 1/2*diffa_x <= 15,
+           diffy + diffv_y + 1/2*diffa_y >= -15,
+           diffy + diffv_y + 1/2*diffa_y <= 15,
+           Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+              diffy + diffv_y + 1/2*diffa_y >= 1,
+              diffx + diffv_x + 1/2*diffa_x >= 1,
+              diffx + diffv_x + 1/2*diffa_x <= -1)))
+wrapped wpc after QE and simplification = 
+ And(2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+guard:
+And(2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+updated guardDisjunction:
+And(2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+guardDisjunction after QE and simp:
+And(2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+going to calc inv delta as residue of stateInv and someGuardHolds..
+new invariant=
+And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1),
+    2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+updated control pred on action relative_accelerate 
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+
+----------------
+iteration 1
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1),
+    2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50)
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   diffx + diffv_x + 1/2*diffa_x >= -15
+   5   diffx + diffv_x + 1/2*diffa_x <= 15
+   6   diffy + diffv_y + 1/2*diffa_y >= -15
+   7   diffy + diffv_y + 1/2*diffa_y <= 15
+   8   Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+   diffy + diffv_y + 1/2*diffa_y >= 1,
+   diffx + diffv_x + 1/2*diffa_x >= 1,
+   diffx + diffv_x + 1/2*diffa_x <= -1)
+   9   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   10   diffv_xX == diffv_x + diffa_x*1
+   11   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   12   diffv_yX == diffv_y + diffa_y*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc relative_accelerate
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx + diffv_x*1 + ((diffa_x*1)/2)*1,
+                       diffv_xX == diffv_x + diffa_x*1,
+                       diffyX ==
+                       diffy + diffv_y*1 + ((diffa_y*1)/2)*1,
+                       diffv_yX == diffv_y + diffa_y*1),
+                   True),
+               And(2*diffv_yX + 2*diffyX <= 50,
+                   -1*diffxX + -1*diffv_xX <= 25,
+                   -1*diffv_yX + -1*diffyX <= 25,
+                   2*diffxX + 2*diffv_xX <= 50)))
+wpc:
+And(4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+No env vars on node main or action relative_accelerate
+env wrapped formula:
+ And(4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+guard of relative_accelerate :
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1))
+new unoptimized guard:
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+newActGuard (simplified residue wrt inv):
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+newActGuardDelta (residue of NewActGuard): [4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+ -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+ -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+ 2*diffx + 4*diffv_x + 3*diffa_x <= 50]
+ctrlPred= And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+ctrl wrapped formula:
+ Exists([diffa_x, diffa_y],
+       And(diffa_x >= -20,
+           diffa_x <= 20,
+           diffa_y >= -20,
+           diffa_y <= 20,
+           diffx + diffv_x + 1/2*diffa_x >= -15,
+           diffx + diffv_x + 1/2*diffa_x <= 15,
+           diffy + diffv_y + 1/2*diffa_y >= -15,
+           diffy + diffv_y + 1/2*diffa_y <= 15,
+           Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+              diffy + diffv_y + 1/2*diffa_y >= 1,
+              diffx + diffv_x + 1/2*diffa_x >= 1,
+              diffx + diffv_x + 1/2*diffa_x <= -1),
+           4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+           -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+           -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+           2*diffx + 4*diffv_x + 3*diffa_x <= 50))
+wrapped wpc after QE and simplification = 
+ And(Or(diffv_y + 2*diffy <= 70,
+       -2*diffv_y + -2*diffy <= -10),
+    diffv_y + 2*diffy <= 70,
+    Or(-2*diffx + -2*diffv_x <= -10,
+       2*diffx + diffv_x <= 70),
+    -2/3*diffx + -1/3*diffv_x <= 70/3,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    2*diffv_y + 2*diffy <= 50,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    2*diffx + diffv_x <= 70,
+    -1*diffx + -1*diffv_x <= 25,
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    -1*diffx + -2*diffv_x <= 55,
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9))
+guard:
+And(diffv_y + 2*diffy <= 70,
+    -2/3*diffx + -1/3*diffv_x <= 70/3,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    2*diffv_y + 2*diffy <= 50,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    2*diffx + diffv_x <= 70,
+    -1*diffx + -1*diffv_x <= 25,
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    -1*diffx + -2*diffv_x <= 55,
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9))
+updated guardDisjunction:
+And(diffv_y + 2*diffy <= 70,
+    -2/3*diffx + -1/3*diffv_x <= 70/3,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    2*diffv_y + 2*diffy <= 50,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    2*diffx + diffv_x <= 70,
+    -1*diffx + -1*diffv_x <= 25,
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    -1*diffx + -2*diffv_x <= 55,
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9))
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(diffv_y + 2*diffy <= 70,
+    -2/3*diffx + -1/3*diffv_x <= 70/3,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    2*diffv_y + 2*diffy <= 50,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    2*diffx + diffv_x <= 70,
+    -1*diffx + -1*diffv_x <= 25,
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    -1*diffx + -2*diffv_x <= 55,
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9))
+guardDisjunction after QE and simp:
+And(diffv_y + 2*diffy <= 70,
+    -2/3*diffx + -1/3*diffv_x <= 70/3,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    2*diffv_y + 2*diffy <= 50,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    2*diffx + diffv_x <= 70,
+    -1*diffx + -1*diffv_x <= 25,
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    -1*diffx + -2*diffv_x <= 55,
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9))
+going to calc inv delta as residue of stateInv and someGuardHolds..
+new invariant=
+And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1),
+    2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -2*diffv_y + -1*diffy <= 55,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    -1*diffx + -2*diffv_x <= 55)
+updated control pred on action relative_accelerate 
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+
+----------------
+iteration 2
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1),
+    2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -2*diffv_y + -1*diffy <= 55,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    -1*diffx + -2*diffv_x <= 55)
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   diffx + diffv_x + 1/2*diffa_x >= -15
+   5   diffx + diffv_x + 1/2*diffa_x <= 15
+   6   diffy + diffv_y + 1/2*diffa_y >= -15
+   7   diffy + diffv_y + 1/2*diffa_y <= 15
+   8   Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+   diffy + diffv_y + 1/2*diffa_y >= 1,
+   diffx + diffv_x + 1/2*diffa_x >= 1,
+   diffx + diffv_x + 1/2*diffa_x <= -1)
+   9   4*diffv_y + 3*diffa_y + 2*diffy <= 50
+   10   -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25
+   11   -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25
+   12   2*diffx + 4*diffv_x + 3*diffa_x <= 50
+   13   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   14   diffv_xX == diffv_x + diffa_x*1
+   15   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   16   diffv_yX == diffv_y + diffa_y*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc relative_accelerate
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx + diffv_x*1 + ((diffa_x*1)/2)*1,
+                       diffv_xX == diffv_x + diffa_x*1,
+                       diffyX ==
+                       diffy + diffv_y*1 + ((diffa_y*1)/2)*1,
+                       diffv_yX == diffv_y + diffa_y*1),
+                   True),
+               And(2/3*diffxX + 4/3*diffv_xX <= 110/3,
+                   -2*diffv_yX + -1*diffyX <= 55,
+                   4/3*diffv_yX + 2/3*diffyX <= 110/3,
+                   -1*diffxX + -2*diffv_xX <= 55)))
+wpc:
+And(2/3*diffx + 2*diffv_x + 5/3*diffa_x <= 110/3,
+    -3*diffv_y + -5/2*diffa_y + -1*diffy <= 55,
+    2*diffv_y + 5/3*diffa_y + 2/3*diffy <= 110/3,
+    -1*diffx + -3*diffv_x + -5/2*diffa_x <= 55)
+No env vars on node main or action relative_accelerate
+env wrapped formula:
+ And(2/3*diffx + 2*diffv_x + 5/3*diffa_x <= 110/3,
+    -3*diffv_y + -5/2*diffa_y + -1*diffy <= 55,
+    2*diffv_y + 5/3*diffa_y + 2/3*diffy <= 110/3,
+    -1*diffx + -3*diffv_x + -5/2*diffa_x <= 55)
+guard of relative_accelerate :
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+new unoptimized guard:
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50,
+    2/3*diffx + 2*diffv_x + 5/3*diffa_x <= 110/3,
+    -3*diffv_y + -5/2*diffa_y + -1*diffy <= 55,
+    2*diffv_y + 5/3*diffa_y + 2/3*diffy <= 110/3,
+    -1*diffx + -3*diffv_x + -5/2*diffa_x <= 55)
+newActGuard (simplified residue wrt inv):
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+newActGuardDelta (residue of NewActGuard): []
+ctrlPred= And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+ctrl wrapped formula:
+ Exists([diffa_x, diffa_y],
+       And(diffa_x >= -20,
+           diffa_x <= 20,
+           diffa_y >= -20,
+           diffa_y <= 20,
+           diffx + diffv_x + 1/2*diffa_x >= -15,
+           diffx + diffv_x + 1/2*diffa_x <= 15,
+           diffy + diffv_y + 1/2*diffa_y >= -15,
+           diffy + diffv_y + 1/2*diffa_y <= 15,
+           Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+              diffy + diffv_y + 1/2*diffa_y >= 1,
+              diffx + diffv_x + 1/2*diffa_x >= 1,
+              diffx + diffv_x + 1/2*diffa_x <= -1),
+           4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+           -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+           -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+           2*diffx + 4*diffv_x + 3*diffa_x <= 50))
+wrapped wpc after QE and simplification = 
+ And(-2/3*diffx + -1/3*diffv_x <= 70/3,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    diffv_y + 2*diffy <= 70,
+    2*diffv_y + 2*diffy <= 50,
+    2/3*diffx + 1/3*diffv_x <= 70/3,
+    -2/3*diffx + -4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    diffx + diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    -2*diffx + -2*diffv_x <= 50,
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9),
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3))
+guard:
+And(-2/3*diffx + -1/3*diffv_x <= 70/3,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    diffv_y + 2*diffy <= 70,
+    2*diffv_y + 2*diffy <= 50,
+    2/3*diffx + 1/3*diffv_x <= 70/3,
+    -2/3*diffx + -4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    diffx + diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    -2*diffx + -2*diffv_x <= 50,
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9),
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3))
+updated guardDisjunction:
+And(-2/3*diffx + -1/3*diffv_x <= 70/3,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    diffv_y + 2*diffy <= 70,
+    2*diffv_y + 2*diffy <= 50,
+    2/3*diffx + 1/3*diffv_x <= 70/3,
+    -2/3*diffx + -4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    diffx + diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    -2*diffx + -2*diffv_x <= 50,
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9),
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3))
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(-2/3*diffx + -1/3*diffv_x <= 70/3,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    diffv_y + 2*diffy <= 70,
+    2*diffv_y + 2*diffy <= 50,
+    2/3*diffx + 1/3*diffv_x <= 70/3,
+    -2/3*diffx + -4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    diffx + diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    -2*diffx + -2*diffv_x <= 50,
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9),
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3))
+guardDisjunction after QE and simp:
+And(-2/3*diffx + -1/3*diffv_x <= 70/3,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -1/3*diffv_y + -2/3*diffy <= 70/3,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    diffv_y + 2*diffy <= 70,
+    2*diffv_y + 2*diffy <= 50,
+    2/3*diffx + 1/3*diffv_x <= 70/3,
+    -2/3*diffx + -4/3*diffv_x <= 110/3,
+    -1*diffv_y + -1*diffy <= 25,
+    diffx + diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 55,
+    -2*diffx + -2*diffv_x <= 50,
+    Or(-2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9),
+    Or(-1*diffv_y + -1*diffy <= 9,
+       -2/3*diffx + -1/3*diffv_x <= 22/3,
+       diffx + diffv_x <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1*diffv_y + -1*diffy <= 9,
+       1/3*diffv_y + 2/3*diffy <= 22/3,
+       2/3*diffx + 1/3*diffv_x <= 22/3),
+    Or(-1*diffx + -1*diffv_x <= 9,
+       -1/3*diffv_y + -2/3*diffy <= 22/3,
+       diffv_y + diffy <= 9,
+       2/3*diffx + 1/3*diffv_x <= 22/3))
+going to calc inv delta as residue of stateInv and someGuardHolds..
+no change to invariant on main
+updated control pred on action relative_accelerate 
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    diffx + diffv_x + 1/2*diffa_x >= -15,
+    diffx + diffv_x + 1/2*diffa_x <= 15,
+    diffy + diffv_y + 1/2*diffa_y >= -15,
+    diffy + diffv_y + 1/2*diffa_y <= 15,
+    Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+       diffy + diffv_y + 1/2*diffa_y >= 1,
+       diffx + diffv_x + 1/2*diffa_x >= 1,
+       diffx + diffv_x + 1/2*diffa_x <= -1),
+    4*diffv_y + 3*diffa_y + 2*diffy <= 50,
+    -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25,
+    -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25,
+    2*diffx + 4*diffv_x + 3*diffa_x <= 50)
+
+----------------
+Final Model - fixpoint at iteration 3
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -15,
+    diffx <= 15,
+    diffy >= -15,
+    diffy <= 15,
+    Or(diffx >= 1, diffx <= -1, diffy >= 1, diffy <= -1),
+    2*diffv_y + 2*diffy <= 50,
+    -1*diffx + -1*diffv_x <= 25,
+    -1*diffv_y + -1*diffy <= 25,
+    2*diffx + 2*diffv_x <= 50,
+    2/3*diffx + 4/3*diffv_x <= 110/3,
+    -2*diffv_y + -1*diffy <= 55,
+    4/3*diffv_y + 2/3*diffy <= 110/3,
+    -1*diffx + -2*diffv_x <= 55)
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   diffx + diffv_x + 1/2*diffa_x >= -15
+   5   diffx + diffv_x + 1/2*diffa_x <= 15
+   6   diffy + diffv_y + 1/2*diffa_y >= -15
+   7   diffy + diffv_y + 1/2*diffa_y <= 15
+   8   Or(diffy + diffv_y + 1/2*diffa_y <= -1,
+   diffy + diffv_y + 1/2*diffa_y >= 1,
+   diffx + diffv_x + 1/2*diffa_x >= 1,
+   diffx + diffv_x + 1/2*diffa_x <= -1)
+   9   4*diffv_y + 3*diffa_y + 2*diffy <= 50
+   10   -1*diffx + -2*diffv_x + -3/2*diffa_x <= 25
+   11   -2*diffv_y + -3/2*diffa_y + -1*diffy <= 25
+   12   2*diffx + 4*diffv_x + 3*diffa_x <= 50
+   13   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   14   diffv_xX == diffv_x + diffa_x*1
+   15   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   16   diffv_yX == diffv_y + diffa_y*1
+

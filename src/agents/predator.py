@@ -7,5 +7,6 @@ class Predator(BaseAgent):
                          doing_obstacles=doing_obstacles, doing_geofence=doing_geofence,
                          LObs=LObs, RObs=RObs, TObs=TObs, BObs=BObs)
         self.shield_was_used_in_step = False
+        self.sheild_corrected = False
 
     # def reset(self):

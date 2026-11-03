@@ -1,0 +1,275 @@
+DOING_SEP = True
+MAX_SEP = -1   MIN_SEP = 0.1
+Refining Model predator-predator separation (relative coords), 2-D
+
+Initializing node [arc] label with state [step] property
+ Or(diffx >= 1/10,
+   diffx <= -1/10,
+   diffy >= 1/10,
+   diffy <= -1/10)
+ on node main
+--> strengthened node label:
+ Or(diffx >= 1/10,
+   diffx <= -1/10,
+   diffy >= 1/10,
+   diffy <= -1/10)
+
+----------------
+iteration 0
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: Or(diffx >= 1/10,
+   diffx <= -1/10,
+   diffy >= 1/10,
+   diffy <= -1/10)
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   5   diffv_xX == diffv_x + diffa_x*1
+   6   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   7   diffv_yX == diffv_y + diffa_y*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc relative_accelerate
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx + diffv_x*1 + ((diffa_x*1)/2)*1,
+                       diffv_xX == diffv_x + diffa_x*1,
+                       diffyX ==
+                       diffy + diffv_y*1 + ((diffa_y*1)/2)*1,
+                       diffv_yX == diffv_y + diffa_y*1),
+                   True),
+               Or(diffxX >= 1/10,
+                  diffxX <= -1/10,
+                  diffyX >= 1/10,
+                  diffyX <= -1/10)))
+wpc:
+Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+   diffx + diffv_x + 1/2*diffa_x <= -1/10,
+   diffy + diffv_y + 1/2*diffa_y <= -1/10,
+   diffx + diffv_x + 1/2*diffa_x >= 1/10)
+No env vars on node main or action relative_accelerate
+env wrapped formula:
+ Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+   diffx + diffv_x + 1/2*diffa_x <= -1/10,
+   diffy + diffv_y + 1/2*diffa_y <= -1/10,
+   diffx + diffv_x + 1/2*diffa_x >= 1/10)
+guard of relative_accelerate :
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20)
+new unoptimized guard:
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+newActGuard (simplified residue wrt inv):
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+newActGuardDelta (residue of NewActGuard): [Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+    diffx + diffv_x + 1/2*diffa_x <= -1/10,
+    diffy + diffv_y + 1/2*diffa_y <= -1/10,
+    diffx + diffv_x + 1/2*diffa_x >= 1/10)]
+ctrlPred= And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+ctrl wrapped formula:
+ Exists([diffa_x, diffa_y],
+       And(diffa_x >= -20,
+           diffa_x <= 20,
+           diffa_y >= -20,
+           diffa_y <= 20,
+           Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+              diffx + diffv_x + 1/2*diffa_x <= -1/10,
+              diffy + diffv_y + 1/2*diffa_y <= -1/10,
+              diffx + diffv_x + 1/2*diffa_x >= 1/10)))
+wrapped wpc after QE and simplification =
+ True
+guard:
+True
+updated guardDisjunction:
+True
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+True
+guardDisjunction after QE and simp:
+True
+going to calc inv delta as residue of stateInv and someGuardHolds..
+no change to invariant on main
+updated control pred on action relative_accelerate
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+
+----------------
+iteration 1
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: Or(diffx >= 1/10,
+   diffx <= -1/10,
+   diffy >= 1/10,
+   diffy <= -1/10)
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+   diffx + diffv_x + 1/2*diffa_x <= -1/10,
+   diffy + diffv_y + 1/2*diffa_y <= -1/10,
+   diffx + diffv_x + 1/2*diffa_x >= 1/10)
+   5   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   6   diffv_xX == diffv_x + diffa_x*1
+   7   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   8   diffv_yX == diffv_y + diffa_y*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc relative_accelerate
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx + diffv_x*1 + ((diffa_x*1)/2)*1,
+                       diffv_xX == diffv_x + diffa_x*1,
+                       diffyX ==
+                       diffy + diffv_y*1 + ((diffa_y*1)/2)*1,
+                       diffv_yX == diffv_y + diffa_y*1),
+                   True),
+               Or(diffxX >= 1/10,
+                  diffxX <= -1/10,
+                  diffyX >= 1/10,
+                  diffyX <= -1/10)))
+wpc:
+Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+   diffx + diffv_x + 1/2*diffa_x <= -1/10,
+   diffy + diffv_y + 1/2*diffa_y <= -1/10,
+   diffx + diffv_x + 1/2*diffa_x >= 1/10)
+No env vars on node main or action relative_accelerate
+env wrapped formula:
+ Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+   diffx + diffv_x + 1/2*diffa_x <= -1/10,
+   diffy + diffv_y + 1/2*diffa_y <= -1/10,
+   diffx + diffv_x + 1/2*diffa_x >= 1/10)
+guard of relative_accelerate :
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+new unoptimized guard:
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+newActGuard (simplified residue wrt inv):
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+newActGuardDelta (residue of NewActGuard): []
+ctrlPred= And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+ctrl wrapped formula:
+ Exists([diffa_x, diffa_y],
+       And(diffa_x >= -20,
+           diffa_x <= 20,
+           diffa_y >= -20,
+           diffa_y <= 20,
+           Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+              diffx + diffv_x + 1/2*diffa_x <= -1/10,
+              diffy + diffv_y + 1/2*diffa_y <= -1/10,
+              diffx + diffv_x + 1/2*diffa_x >= 1/10)))
+wrapped wpc after QE and simplification =
+ True
+guard:
+True
+updated guardDisjunction:
+True
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+True
+guardDisjunction after QE and simp:
+True
+going to calc inv delta as residue of stateInv and someGuardHolds..
+no change to invariant on main
+updated control pred on action relative_accelerate
+ And(diffa_x >= -20,
+    diffa_x <= 20,
+    diffa_y >= -20,
+    diffa_y <= 20,
+    Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+       diffx + diffv_x + 1/2*diffa_x <= -1/10,
+       diffy + diffv_y + 1/2*diffa_y <= -1/10,
+       diffx + diffv_x + 1/2*diffa_x >= 1/10))
+
+----------------
+Final Model - fixpoint at iteration 2
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: Or(diffx >= 1/10,
+   diffx <= -1/10,
+   diffy >= 1/10,
+   diffy <= -1/10)
+Transition: relative_accelerate
+   0   diffa_x >= -20
+   1   diffa_x <= 20
+   2   diffa_y >= -20
+   3   diffa_y <= 20
+   4   Or(diffy + diffv_y + 1/2*diffa_y >= 1/10,
+   diffx + diffv_x + 1/2*diffa_x <= -1/10,
+   diffy + diffv_y + 1/2*diffa_y <= -1/10,
+   diffx + diffv_x + 1/2*diffa_x >= 1/10)
+   5   diffxX == diffx + diffv_x*1 + ((diffa_x*1)/2)*1
+   6   diffv_xX == diffv_x + diffa_x*1
+   7   diffyX == diffy + diffv_y*1 + ((diffa_y*1)/2)*1
+   8   diffv_yX == diffv_y + diffa_y*1
+

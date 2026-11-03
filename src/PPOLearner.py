@@ -175,9 +175,13 @@ class PPOLearner(PPO):
                         terminal_value = self.policy.predict_values(terminal_obs)[0]  # type: ignore[arg-type]
                     rewards[idx] += self.gamma * terminal_value
 
+            # the shield can change the executed action, so store the policy's own sample, which is what log_probs describes
+            buffer_action = getattr(self.action_selector, 'proposed_action', None)
+            if buffer_action is None: buffer_action = action_per_pred
             rollout_buffer.add(
                 self._last_obs,  # type: ignore[arg-type]
-                action_per_pred,
+                # action_per_pred,
+                buffer_action,
                 rewards,
                 self._last_episode_starts,  # type: ignore[arg-type]
                 values,
@@ -225,4 +229,14 @@ class PPOLearner(PPO):
             # self.logger.record("time/fps", fps, exclude="tensorboard")
             self.logger.record("rollout/ep_rew_mean", mean_reward)
             self.logger.record("rollout/ep_len_mean", mean_length)
+            selector = self.action_selector
+            decisions = getattr(selector, 'shield_rate_decisions', 0)
+            if decisions:
+                self.logger.record("shield/use_rate", selector.shield_use_count / decisions)
+                self.logger.record("shield/correction_rate", selector.shield_correction_count / decisions)
+                self.logger.record("shield/no_safe_point_rate", selector.no_safe_point_count / decisions)
+                selector.shield_rate_decisions = 0
+                selector.shield_use_count = 0
+                selector.shield_correction_count = 0
+                selector.no_safe_point_count = 0
             self.logger.dump(self.num_timesteps)

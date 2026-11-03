@@ -1,0 +1,1099 @@
+A_MAX=10, A_PREY_MAX=5, MAX_TRACK_DIST=10, MIN_TRACK_DIST=-1
+Refining Model predator-prey tracking (relative coords), 2-D adversarial
+
+Initializing node [arc] label with state [step] property
+ diffx >= -10
+ on node main
+--> strengthened node label:
+ diffx >= -10
+
+Initializing node [arc] label with state [step] property
+ diffx <= 10
+ on node main
+--> strengthened node label:
+ And(diffx >= -10, diffx <= 10)
+
+Initializing node [arc] label with state [step] property
+ diffy >= -10
+ on node main
+--> strengthened node label:
+ And(diffx >= -10, diffx <= 10, diffy >= -10)
+
+Initializing node [arc] label with state [step] property
+ diffy <= 10
+ on node main
+--> strengthened node label:
+ And(diffx >= -10, diffx <= 10, diffy >= -10, diffy <= 10)
+
+----------------
+iteration 0
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -10, diffx <= 10, diffy >= -10, diffy <= 10)
+Transition: track
+   0   a_pred_x >= -10
+   1   a_pred_x <= 10
+   2   a_pred_y >= -10
+   3   a_pred_y <= 10
+   4   diffxX == diffx + diffv_x*1 + (((a_pred_x - prey_ax)*1)/2)*1
+   5   diffv_xX == diffv_x + (a_pred_x - prey_ax)*1
+   6   diffyX == diffy + diffv_y*1 + (((a_pred_y - prey_ay)*1)/2)*1
+   7   diffv_yX == diffv_y + (a_pred_y - prey_ay)*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc track
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx +
+                       diffv_x*1 +
+                       (((a_pred_x - prey_ax)*1)/2)*1,
+                       diffv_xX ==
+                       diffv_x + (a_pred_x - prey_ax)*1,
+                       diffyX ==
+                       diffy +
+                       diffv_y*1 +
+                       (((a_pred_y - prey_ay)*1)/2)*1,
+                       diffv_yX ==
+                       diffv_y + (a_pred_y - prey_ay)*1),
+                   True),
+               And(diffxX >= -10,
+                   diffxX <= 10,
+                   diffyX >= -10,
+                   diffyX <= 10)))
+wpc:
+And(diffx + diffv_x + 1/2*a_pred_x + -1/2*prey_ax >= -10,
+    diffx + diffv_x + 1/2*a_pred_x + -1/2*prey_ax <= 10,
+    diffy + diffv_y + 1/2*a_pred_y + -1/2*prey_ay >= -10,
+    diffy + diffv_y + 1/2*a_pred_y + -1/2*prey_ay <= 10)
+env wrapped formula:
+ ForAll([prey_ax, prey_ay],
+       Implies(And(prey_ax >= -5,
+                   prey_ax <= 5,
+                   prey_ay >= -5,
+                   prey_ay <= 5),
+               And(diffx +
+                   diffv_x +
+                   1/2*a_pred_x +
+                   -1/2*prey_ax >=
+                   -10,
+                   diffx +
+                   diffv_x +
+                   1/2*a_pred_x +
+                   -1/2*prey_ax <=
+                   10,
+                   diffy +
+                   diffv_y +
+                   1/2*a_pred_y +
+                   -1/2*prey_ay >=
+                   -10,
+                   diffy +
+                   diffv_y +
+                   1/2*a_pred_y +
+                   -1/2*prey_ay <=
+                   10)))
+guard of track :
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10)
+new unoptimized guard:
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x)
+newActGuard (simplified residue wrt inv):
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x)
+newActGuardDelta (residue of NewActGuard): [-15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+ -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+ -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+ -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x]
+ctrlPred= And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x)
+ctrl wrapped formula:
+ Exists([a_pred_x, a_pred_y],
+       And(a_pred_x >= -10,
+           a_pred_x <= 10,
+           a_pred_y >= -10,
+           a_pred_y <= 10,
+           -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+           -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+           -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+           -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x))
+wrapped wpc after QE and simplification = 
+ And(2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+guard:
+And(2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+updated guardDisjunction:
+And(2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+guardDisjunction after QE and simp:
+And(2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+going to calc inv delta as residue of stateInv and someGuardHolds..
+new invariant=
+And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+updated control pred on action track 
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x)
+
+----------------
+iteration 1
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25)
+Transition: track
+   0   a_pred_x >= -10
+   1   a_pred_x <= 10
+   2   a_pred_y >= -10
+   3   a_pred_y <= 10
+   4   -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy
+   5   -15/2 <= 1/2*a_pred_x + diffx + diffv_x
+   6   -15/2 <= 1/2*a_pred_y + diffv_y + diffy
+   7   -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x
+   8   diffxX == diffx + diffv_x*1 + (((a_pred_x - prey_ax)*1)/2)*1
+   9   diffv_xX == diffv_x + (a_pred_x - prey_ax)*1
+   10   diffyX == diffy + diffv_y*1 + (((a_pred_y - prey_ay)*1)/2)*1
+   11   diffv_yX == diffv_y + (a_pred_y - prey_ay)*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc track
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx +
+                       diffv_x*1 +
+                       (((a_pred_x - prey_ax)*1)/2)*1,
+                       diffv_xX ==
+                       diffv_x + (a_pred_x - prey_ax)*1,
+                       diffyX ==
+                       diffy +
+                       diffv_y*1 +
+                       (((a_pred_y - prey_ay)*1)/2)*1,
+                       diffv_yX ==
+                       diffv_y + (a_pred_y - prey_ay)*1),
+                   True),
+               And(2*diffv_yX + 2*diffyX <= 25,
+                   -1*diffxX + -1*diffv_xX <= 25/2,
+                   -1*diffv_yX + -1*diffyX <= 25/2,
+                   2*diffxX + 2*diffv_xX <= 25)))
+wpc:
+And(4*diffv_y + 3*a_pred_y + -3*prey_ay + 2*diffy <= 25,
+    -1*diffx + -2*diffv_x + -3/2*a_pred_x + 3/2*prey_ax <=
+    25/2,
+    -2*diffv_y + -3/2*a_pred_y + 3/2*prey_ay + -1*diffy <=
+    25/2,
+    2*diffx + 4*diffv_x + 3*a_pred_x + -3*prey_ax <= 25)
+env wrapped formula:
+ ForAll([prey_ax, prey_ay],
+       Implies(And(prey_ax >= -5,
+                   prey_ax <= 5,
+                   prey_ay >= -5,
+                   prey_ay <= 5),
+               And(4*diffv_y +
+                   3*a_pred_y +
+                   -3*prey_ay +
+                   2*diffy <=
+                   25,
+                   -1*diffx +
+                   -2*diffv_x +
+                   -3/2*a_pred_x +
+                   3/2*prey_ax <=
+                   25/2,
+                   -2*diffv_y +
+                   -3/2*a_pred_y +
+                   3/2*prey_ay +
+                   -1*diffy <=
+                   25/2,
+                   2*diffx +
+                   4*diffv_x +
+                   3*a_pred_x +
+                   -3*prey_ax <=
+                   25)))
+guard of track :
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x)
+new unoptimized guard:
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x)
+newActGuard (simplified residue wrt inv):
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x)
+newActGuardDelta (residue of NewActGuard): [-5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+ -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+ -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+ -5 <= 3/2*a_pred_x + diffx + 2*diffv_x]
+ctrlPred= And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x)
+ctrl wrapped formula:
+ Exists([a_pred_x, a_pred_y],
+       And(a_pred_x >= -10,
+           a_pred_x <= 10,
+           a_pred_y >= -10,
+           a_pred_y <= 10,
+           -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+           -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+           -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+           -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+           -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+           -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+           -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+           -5 <= 3/2*a_pred_x + diffx + 2*diffv_x))
+wrapped wpc after QE and simplification = 
+ And(2/3*diffx + 4/3*diffv_x <= 40/3,
+    Or(4/3*diffv_y + 2/3*diffy <= 40/3,
+       2/3*diffv_y + 4/3*diffy <= 35/3),
+    -1/3*diffv_y + -2/3*diffy <= 55/6,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    2*diffx + diffv_x <= 55/2,
+    Or(-2/3*diffx + -1/3*diffv_x <= 55/6,
+       -2/3*diffx + -4/3*diffv_x <= 20/3),
+    diffv_y + 2*diffy <= 55/2,
+    2*diffv_y + 2*diffy <= 25,
+    -2/3*diffx + -1/3*diffv_x <= 55/6,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -1*diffx + -2*diffv_x <= 20)
+guard:
+And(2/3*diffx + 4/3*diffv_x <= 40/3,
+    -1/3*diffv_y + -2/3*diffy <= 55/6,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    2*diffx + diffv_x <= 55/2,
+    diffv_y + 2*diffy <= 55/2,
+    2*diffv_y + 2*diffy <= 25,
+    -2/3*diffx + -1/3*diffv_x <= 55/6,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -1*diffx + -2*diffv_x <= 20)
+updated guardDisjunction:
+And(2/3*diffx + 4/3*diffv_x <= 40/3,
+    -1/3*diffv_y + -2/3*diffy <= 55/6,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    2*diffx + diffv_x <= 55/2,
+    diffv_y + 2*diffy <= 55/2,
+    2*diffv_y + 2*diffy <= 25,
+    -2/3*diffx + -1/3*diffv_x <= 55/6,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -1*diffx + -2*diffv_x <= 20)
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(2/3*diffx + 4/3*diffv_x <= 40/3,
+    -1/3*diffv_y + -2/3*diffy <= 55/6,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    2*diffx + diffv_x <= 55/2,
+    diffv_y + 2*diffy <= 55/2,
+    2*diffv_y + 2*diffy <= 25,
+    -2/3*diffx + -1/3*diffv_x <= 55/6,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -1*diffx + -2*diffv_x <= 20)
+guardDisjunction after QE and simp:
+And(2/3*diffx + 4/3*diffv_x <= 40/3,
+    -1/3*diffv_y + -2/3*diffy <= 55/6,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    2*diffx + diffv_x <= 55/2,
+    diffv_y + 2*diffy <= 55/2,
+    2*diffv_y + 2*diffy <= 25,
+    -2/3*diffx + -1/3*diffv_x <= 55/6,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -1*diffx + -2*diffv_x <= 20)
+going to calc inv delta as residue of stateInv and someGuardHolds..
+new invariant=
+And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffx + -2*diffv_x <= 20)
+updated control pred on action track 
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x)
+
+----------------
+iteration 2
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffx + -2*diffv_x <= 20)
+Transition: track
+   0   a_pred_x >= -10
+   1   a_pred_x <= 10
+   2   a_pred_y >= -10
+   3   a_pred_y <= 10
+   4   -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy
+   5   -15/2 <= 1/2*a_pred_x + diffx + diffv_x
+   6   -15/2 <= 1/2*a_pred_y + diffv_y + diffy
+   7   -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x
+   8   -5 <= diffy + 2*diffv_y + 3/2*a_pred_y
+   9   -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x
+   10   -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y
+   11   -5 <= 3/2*a_pred_x + diffx + 2*diffv_x
+   12   diffxX == diffx + diffv_x*1 + (((a_pred_x - prey_ax)*1)/2)*1
+   13   diffv_xX == diffv_x + (a_pred_x - prey_ax)*1
+   14   diffyX == diffy + diffv_y*1 + (((a_pred_y - prey_ay)*1)/2)*1
+   15   diffv_yX == diffv_y + (a_pred_y - prey_ay)*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc track
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx +
+                       diffv_x*1 +
+                       (((a_pred_x - prey_ax)*1)/2)*1,
+                       diffv_xX ==
+                       diffv_x + (a_pred_x - prey_ax)*1,
+                       diffyX ==
+                       diffy +
+                       diffv_y*1 +
+                       (((a_pred_y - prey_ay)*1)/2)*1,
+                       diffv_yX ==
+                       diffv_y + (a_pred_y - prey_ay)*1),
+                   True),
+               And(2/3*diffxX + 4/3*diffv_xX <= 40/3,
+                   4/3*diffv_yX + 2/3*diffyX <= 40/3,
+                   -2*diffv_yX + -1*diffyX <= 20,
+                   -1*diffxX + -2*diffv_xX <= 20)))
+wpc:
+And(2/3*diffx + 2*diffv_x + 5/3*a_pred_x + -5/3*prey_ax <=
+    40/3,
+    2*diffv_y + 5/3*a_pred_y + -5/3*prey_ay + 2/3*diffy <=
+    40/3,
+    -3*diffv_y + -5/2*a_pred_y + 5/2*prey_ay + -1*diffy <=
+    20,
+    -1*diffx + -3*diffv_x + -5/2*a_pred_x + 5/2*prey_ax <=
+    20)
+env wrapped formula:
+ ForAll([prey_ax, prey_ay],
+       Implies(And(prey_ax >= -5,
+                   prey_ax <= 5,
+                   prey_ay >= -5,
+                   prey_ay <= 5),
+               And(2/3*diffx +
+                   2*diffv_x +
+                   5/3*a_pred_x +
+                   -5/3*prey_ax <=
+                   40/3,
+                   2*diffv_y +
+                   5/3*a_pred_y +
+                   -5/3*prey_ay +
+                   2/3*diffy <=
+                   40/3,
+                   -3*diffv_y +
+                   -5/2*a_pred_y +
+                   5/2*prey_ay +
+                   -1*diffy <=
+                   20,
+                   -1*diffx +
+                   -3*diffv_x +
+                   -5/2*a_pred_x +
+                   5/2*prey_ax <=
+                   20)))
+guard of track :
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x)
+new unoptimized guard:
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+newActGuard (simplified residue wrt inv):
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+newActGuardDelta (residue of NewActGuard): [-3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+ -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+ -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+ -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x]
+ctrlPred= And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+ctrl wrapped formula:
+ Exists([a_pred_x, a_pred_y],
+       And(a_pred_x >= -10,
+           a_pred_x <= 10,
+           a_pred_y >= -10,
+           a_pred_y <= 10,
+           -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+           -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+           -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+           -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+           -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+           -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+           -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+           -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+           -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+           -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+           -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+           -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x))
+wrapped wpc after QE and simplification = 
+ And(6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    1/3*diffv_y + 2/3*diffy <= 95/6,
+    -1/5*diffv_y + -2/5*diffy <= 19/2,
+    Or(-6/5*diffv_y + -2/5*diffy <= 7,
+       -2/5*diffv_y + -4/5*diffy <= 9),
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    Or(-2*diffv_y + -2*diffy <= -5,
+       2*diffv_y + 4*diffy <= 45),
+    2*diffv_y + 4*diffy <= 45,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffx + -3*diffv_x <= 65/2,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -3*diffv_y + -1*diffy <= 65/2,
+    Or(-2/5*diffx + -6/5*diffv_x <= 7,
+       2/3*diffx + 4/3*diffv_x <= 40/3),
+    2/3*diffx + 1/3*diffv_x <= 95/6,
+    Or(-2/5*diffx + -6/5*diffv_x <= 7,
+       2*diffx + 2*diffv_x <= 25),
+    4*diffx + 2*diffv_x <= 45,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffv_y + 2*diffy <= 25)
+guard:
+And(6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffv_y + 4*diffy <= 45,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffx + -3*diffv_x <= 65/2,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -3*diffv_y + -1*diffy <= 65/2,
+    4*diffx + 2*diffv_x <= 45,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffv_y + 2*diffy <= 25)
+updated guardDisjunction:
+And(6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffv_y + 4*diffy <= 45,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffx + -3*diffv_x <= 65/2,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -3*diffv_y + -1*diffy <= 65/2,
+    4*diffx + 2*diffv_x <= 45,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffv_y + 2*diffy <= 25)
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffv_y + 4*diffy <= 45,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffx + -3*diffv_x <= 65/2,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -3*diffv_y + -1*diffy <= 65/2,
+    4*diffx + 2*diffv_x <= 45,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffv_y + 2*diffy <= 25)
+guardDisjunction after QE and simp:
+And(6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffv_y + 4*diffy <= 45,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffx + -3*diffv_x <= 65/2,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -3*diffv_y + -1*diffy <= 65/2,
+    4*diffx + 2*diffv_x <= 45,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    2*diffx + 2*diffv_x <= 25,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffv_y + 2*diffy <= 25)
+going to calc inv delta as residue of stateInv and someGuardHolds..
+new invariant=
+And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffx + -2*diffv_x <= 20,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -3*diffv_y + -1*diffy <= 65/2)
+updated control pred on action track 
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+
+----------------
+iteration 3
+Current Model
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffx + -2*diffv_x <= 20,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -3*diffv_y + -1*diffy <= 65/2)
+Transition: track
+   0   a_pred_x >= -10
+   1   a_pred_x <= 10
+   2   a_pred_y >= -10
+   3   a_pred_y <= 10
+   4   -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy
+   5   -15/2 <= 1/2*a_pred_x + diffx + diffv_x
+   6   -15/2 <= 1/2*a_pred_y + diffv_y + diffy
+   7   -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x
+   8   -5 <= diffy + 2*diffv_y + 3/2*a_pred_y
+   9   -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x
+   10   -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y
+   11   -5 <= 3/2*a_pred_x + diffx + 2*diffv_x
+   12   -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y
+   13   -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x
+   14   -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y
+   15   -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x
+   16   diffxX == diffx + diffv_x*1 + (((a_pred_x - prey_ax)*1)/2)*1
+   17   diffv_xX == diffv_x + (a_pred_x - prey_ax)*1
+   18   diffyX == diffy + diffv_y*1 + (((a_pred_y - prey_ay)*1)/2)*1
+   19   diffv_yX == diffv_y + (a_pred_y - prey_ay)*1
+
+
+------- Refining the state invariant for node main
+
+--- Arc track
+raw wpc:
+ ForAll([diffxX, diffyX, diffv_xX, diffv_yX],
+       Implies(And(And(diffxX ==
+                       diffx +
+                       diffv_x*1 +
+                       (((a_pred_x - prey_ax)*1)/2)*1,
+                       diffv_xX ==
+                       diffv_x + (a_pred_x - prey_ax)*1,
+                       diffyX ==
+                       diffy +
+                       diffv_y*1 +
+                       (((a_pred_y - prey_ay)*1)/2)*1,
+                       diffv_yX ==
+                       diffv_y + (a_pred_y - prey_ay)*1),
+                   True),
+               And(6/5*diffv_yX + 2/5*diffyX <= 13,
+                   2/5*diffxX + 6/5*diffv_xX <= 13,
+                   -1*diffxX + -3*diffv_xX <= 65/2,
+                   -3*diffv_yX + -1*diffyX <= 65/2)))
+wpc:
+And(8/5*diffv_y + 7/5*a_pred_y + -7/5*prey_ay + 2/5*diffy <=
+    13,
+    2/5*diffx + 8/5*diffv_x + 7/5*a_pred_x + -7/5*prey_ax <=
+    13,
+    -1*diffx + -4*diffv_x + -7/2*a_pred_x + 7/2*prey_ax <=
+    65/2,
+    -4*diffv_y + -7/2*a_pred_y + 7/2*prey_ay + -1*diffy <=
+    65/2)
+env wrapped formula:
+ ForAll([prey_ax, prey_ay],
+       Implies(And(prey_ax >= -5,
+                   prey_ax <= 5,
+                   prey_ay >= -5,
+                   prey_ay <= 5),
+               And(8/5*diffv_y +
+                   7/5*a_pred_y +
+                   -7/5*prey_ay +
+                   2/5*diffy <=
+                   13,
+                   2/5*diffx +
+                   8/5*diffv_x +
+                   7/5*a_pred_x +
+                   -7/5*prey_ax <=
+                   13,
+                   -1*diffx +
+                   -4*diffv_x +
+                   -7/2*a_pred_x +
+                   7/2*prey_ax <=
+                   65/2,
+                   -4*diffv_y +
+                   -7/2*a_pred_y +
+                   7/2*prey_ay +
+                   -1*diffy <=
+                   65/2)))
+guard of track :
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+new unoptimized guard:
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x,
+    -15 <= 4*diffv_y + diffy + 7/2*a_pred_y,
+    -30/7 <= -8/7*diffv_y + -2/7*diffy + -1*a_pred_y,
+    -15 <= 7/2*a_pred_x + diffx + 4*diffv_x,
+    -30/7 <= -1*a_pred_x + -2/7*diffx + -8/7*diffv_x)
+newActGuard (simplified residue wrt inv):
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+newActGuardDelta (residue of NewActGuard): []
+ctrlPred= And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+ctrl wrapped formula:
+ Exists([a_pred_x, a_pred_y],
+       And(a_pred_x >= -10,
+           a_pred_x <= 10,
+           a_pred_y >= -10,
+           a_pred_y <= 10,
+           -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+           -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+           -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+           -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+           -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+           -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+           -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+           -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+           -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+           -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+           -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+           -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x))
+wrapped wpc after QE and simplification = 
+ And(Or(4/5*diffv_y + 8/5*diffy <= 12,
+       6/5*diffv_y + 2/5*diffy <= 13),
+    Or(2/5*diffx + 6/5*diffv_x <= 13,
+       8/5*diffx + 4/5*diffv_x <= 12),
+    2/5*diffx + 6/5*diffv_x <= 13,
+    2/3*diffx + 1/3*diffv_x <= 95/6,
+    Or(-6/5*diffv_y + -2/5*diffy <= 7,
+       4/3*diffv_y + 2/3*diffy <= 40/3),
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    1/3*diffv_y + 2/3*diffy <= 95/6,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    2*diffx + diffv_x <= 55/2,
+    4*diffx + 2*diffv_x <= 45,
+    2*diffv_y + 2*diffy <= 25,
+    2*diffv_y + 4*diffy <= 45,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffx + 2*diffv_x <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    Or(4/3*diffx + 2/3*diffv_x <= 35/3,
+       -1*diffx + -2*diffv_x <= 20),
+    -1*diffx + -3*diffv_x <= 65/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -3*diffv_y + -1*diffy <= 65/2,
+    -2*diffv_y + -1*diffy <= 20)
+guard:
+And(2/5*diffx + 6/5*diffv_x <= 13,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4*diffx + 2*diffv_x <= 45,
+    2*diffv_y + 2*diffy <= 25,
+    2*diffv_y + 4*diffy <= 45,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffx + 2*diffv_x <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -3*diffv_y + -1*diffy <= 65/2,
+    -2*diffv_y + -1*diffy <= 20)
+updated guardDisjunction:
+And(2/5*diffx + 6/5*diffv_x <= 13,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4*diffx + 2*diffv_x <= 45,
+    2*diffv_y + 2*diffy <= 25,
+    2*diffv_y + 4*diffy <= 45,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffx + 2*diffv_x <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -3*diffv_y + -1*diffy <= 65/2,
+    -2*diffv_y + -1*diffy <= 20)
+
+----- Completed arcs from node main. Now checking if invariant and guards needs updating
+guardDisjunction:
+And(2/5*diffx + 6/5*diffv_x <= 13,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4*diffx + 2*diffv_x <= 45,
+    2*diffv_y + 2*diffy <= 25,
+    2*diffv_y + 4*diffy <= 45,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffx + 2*diffv_x <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -3*diffv_y + -1*diffy <= 65/2,
+    -2*diffv_y + -1*diffy <= 20)
+guardDisjunction after QE and simp:
+And(2/5*diffx + 6/5*diffv_x <= 13,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4*diffx + 2*diffv_x <= 45,
+    2*diffv_y + 2*diffy <= 25,
+    2*diffv_y + 4*diffy <= 45,
+    -4/5*diffx + -2/5*diffv_x <= 9,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    -2/5*diffv_y + -4/5*diffy <= 9,
+    2*diffx + 2*diffv_x <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -1*diffx + -2*diffv_x <= 20,
+    -1*diffv_y + -1*diffy <= 25/2,
+    -3*diffv_y + -1*diffy <= 65/2,
+    -2*diffv_y + -1*diffy <= 20)
+going to calc inv delta as residue of stateInv and someGuardHolds..
+no change to invariant on main
+updated control pred on action track 
+ And(a_pred_x >= -10,
+    a_pred_x <= 10,
+    a_pred_y >= -10,
+    a_pred_y <= 10,
+    -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy,
+    -15/2 <= 1/2*a_pred_x + diffx + diffv_x,
+    -15/2 <= 1/2*a_pred_y + diffv_y + diffy,
+    -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x,
+    -5 <= diffy + 2*diffv_y + 3/2*a_pred_y,
+    -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x,
+    -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y,
+    -5 <= 3/2*a_pred_x + diffx + 2*diffv_x,
+    -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y,
+    -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x,
+    -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y,
+    -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x)
+
+----------------
+Final Model - fixpoint at iteration 4
+Node: main
+  Vars: [diffx, diffy, diffv_x, diffv_y]
+  Node Invariant: And(diffx >= -10,
+    diffx <= 10,
+    diffy >= -10,
+    diffy <= 10,
+    2*diffv_y + 2*diffy <= 25,
+    -1*diffx + -1*diffv_x <= 25/2,
+    -1*diffv_y + -1*diffy <= 25/2,
+    2*diffx + 2*diffv_x <= 25,
+    2/3*diffx + 4/3*diffv_x <= 40/3,
+    4/3*diffv_y + 2/3*diffy <= 40/3,
+    -2*diffv_y + -1*diffy <= 20,
+    -1*diffx + -2*diffv_x <= 20,
+    6/5*diffv_y + 2/5*diffy <= 13,
+    2/5*diffx + 6/5*diffv_x <= 13,
+    -1*diffx + -3*diffv_x <= 65/2,
+    -3*diffv_y + -1*diffy <= 65/2)
+Transition: track
+   0   a_pred_x >= -10
+   1   a_pred_x <= 10
+   2   a_pred_y >= -10
+   3   a_pred_y <= 10
+   4   -15 <= -1*a_pred_y + -2*diffv_y + -2*diffy
+   5   -15/2 <= 1/2*a_pred_x + diffx + diffv_x
+   6   -15/2 <= 1/2*a_pred_y + diffv_y + diffy
+   7   -15 <= -1*a_pred_x + -2*diffx + -2*diffv_x
+   8   -5 <= diffy + 2*diffv_y + 3/2*a_pred_y
+   9   -10/3 <= -1*a_pred_x + -2/3*diffx + -4/3*diffv_x
+   10   -10/3 <= -2/3*diffy + -4/3*diffv_y + -1*a_pred_y
+   11   -5 <= 3/2*a_pred_x + diffx + 2*diffv_x
+   12   -3 <= -6/5*diffv_y + -2/5*diffy + -1*a_pred_y
+   13   -15/2 <= 5/2*a_pred_x + diffx + 3*diffv_x
+   14   -15/2 <= 3*diffv_y + diffy + 5/2*a_pred_y
+   15   -3 <= -1*a_pred_x + -2/5*diffx + -6/5*diffv_x
+   16   diffxX == diffx + diffv_x*1 + (((a_pred_x - prey_ax)*1)/2)*1
+   17   diffv_xX == diffv_x + (a_pred_x - prey_ax)*1
+   18   diffyX == diffy + diffv_y*1 + (((a_pred_y - prey_ay)*1)/2)*1
+   19   diffv_yX == diffv_y + (a_pred_y - prey_ay)*1
+

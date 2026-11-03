@@ -1,3 +1,4 @@
+# from config_ma import DEFAULT_CONFIG  # multia agent grid problem
 from config_gd import DEFAULT_CONFIG  # Game of Drones
 # from config_wt import DEFAULT_CONFIG   # Water Tank
 from copy import deepcopy

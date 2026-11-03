@@ -28,7 +28,7 @@ DEFAULT_CONFIG = {
     #'target_kl': 0.05,                   
 
     # 'max_episode_length': 100,
-    'max_learning_steps': int(1000E3),     #total for trining run
+    'max_learning_steps': int(500E3), #int(1000E3),     #total for trining run
     'buffer_size': int(30E3),             #rollout buffer size
     # moved -> env_config b/c env now needs it 'use_shield': False,
     'num_shield_chances': 100,
@@ -41,25 +41,42 @@ DEFAULT_CONFIG = {
         #TBD: do we want to limit prey and pred speeds to account for terminal velcocities?
         # 'max_velocity': 10 / STEP_SIZE,
         'base_position':        np.array([0.0, 0.0]),
-        'num_preds':            2,
+        'num_preds':            1,
         'num_dims':             2,
-        'PRED_SIZE':            AGENT_SIZE, # 0.1 for shield, 1 for no shield
-        'PREY_SIZE':            0.1, #<-- why not make this AGENT_SIZE as well?
-        'KILL_RADIUS':          1.0,
+        'PRED_SIZE':            AGENT_SIZE, # how close preds get to each other before colliding, 0.1 for shield, 1 for no shield
+        'PREY_SIZE':            0.1,  #how close it needs to get to be at BASE <-- why not make this AGENT_SIZE as well?
+        'KILL_RADIUS':          1.0,  #how close pred has to get to count as KILL
         'STEP_SIZE':            STEP_SIZE,
         'MAX_EPISODE_STEPS':    20,
         'max_acceleration':     10,                           
         'workspace_size':       10,
-        'GEOFENCING' :          True,
-        'DOING_OBSTACLES':      True, 
-        'DOING_BOUNDED':        False,
+        'GEOFENCING' :          False,
+        'DOING_OBSTACLES':      False, 
+        'DOING_BOUNDED':        True,
         'STEPS_BOUND':          3,
         'LObs' :                LObs,
         'RObs' :                RObs,
         'CObs' :                CObs,
         'FObs' :                FObs,
         'BObs' :                BObs,
-        'TObs' :                TObs
+        'TObs' :                TObs,
+        'SHIELD_MARGIN':        1e-5,   #when correction happens placing the corected point right on the polytope boundary can lead to violations b/c of roundoff errors/ This margin causes the safe point to be a bit inside the polytope
+        'SHIELD_PENALTY':       0.01,    # reward for a step where the shield intervened, replacing the task reward; placeholder, to be tuned
+
+        # 'CHECKING_COLLISIONS':  True, # whether shield should check for collisions (not whether collisions should be fatal)
+
+        # --- Multi-agent (MA) settings below are commented out: not used by the single-agent code ---
+        # --- min max separation between preds ---
+        # 'DOING_SEP':            False, # enable pred-pred separation 
+        # 'MIN_SEP':              1, #0.1,     # predators must stay at least this far apart; -1 to disable. Set small non zero value for collision avoidance
+        # 'MAX_SEP':              15, #-1,    # predators must stay within this distance of each other (L-inf); -1 to disable
+
+        # --- smart prey / adversarial tracking shield (model_gd_smart_prey) ---
+        # 'TRACKING_PREY':        True, # enable smart prey: adversarial prey acceleration + OKTrack shield
+        # 'A_PREY_MAX':           5,     # max prey acceleration per axis (7 is max for \E \A)
+        # 'MAX_TRACK_DIST':       10,    # predator must stay within this L-inf distance of prey; -1 to disable
+        # 'MIN_TRACK_DIST':       -1,    # predator-prey min separation; -1 to disable.
+                                        # NOTE: >0 not supported — post-clip repair analogous to DOING_SEP would be needed first
     },
 }
 

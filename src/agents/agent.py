@@ -1,3 +1,6 @@
+'''
+TBD: The clipTo.., landed.. and hit.. methods really belong on the Env not in here
+'''
 from abc import ABC
 import numpy as np
 from ipdb import set_trace
@@ -57,10 +60,11 @@ class BaseAgent(ABC):
         last_element = self.position[self.num_dims - 1]
         #checks if any of the elements of the position falls in the obstacle area
         if self.doing_obstacles: 
+            # strict: the shield guards treat LObs..TObs as bounds strictly enclosing the obstacle. Reason being that for shield action substitution finding the closest safe point requires a closed polytope so bounds for that were made nonstrict
             hit_obstacle = \
-              any(self.LObs <= i and i <= self.RObs for i in self.position[0:(self.num_dims - 1)]) and \
-              self.BObs <= last_element and\
-              last_element <= self.TObs
+              any(self.LObs < i and i < self.RObs for i in self.position[0:(self.num_dims - 1)]) and \
+              self.BObs < last_element and\
+              last_element < self.TObs
         else: 
             hit_obstacle = False
         return (self.doing_obstacles and hit_obstacle)

@@ -3,7 +3,13 @@ import numpy as np
 from agents.predator import Predator
 from agents.prey import Prey
 
-'''Modeled loosly on MPE2 env in github. Private methods start with __ to indicate they should only be called within env. Public methods (__init__, reset, step) are called by SB3 training loop and actionToAcceleration is called by the ActionSelector in PPOLearner.'''
+'''Private methods start with __ to indicate they should only be called within env. Public methods (__init__, reset, step) are called by SB3 training loop and actionToAcceleration is called by the ActionSelector in PPOLearner.
+
+There's a mimatch between the single floats used here and the double floats used by the shield's calculations in OK and solnExists. Soln is 
+*TBD:
+Declare the position, velocity, and target observation spaces with dtype=np.float64.
+Ensure the arrays returned in observations are float64.
+'''
 
 class GameOfDronesEnv(Env):
     # ------------------------------------------------------------------
@@ -12,6 +18,7 @@ class GameOfDronesEnv(Env):
     def __init__(self, config):
 
         assert isinstance(config, dict), 'Config should be a dict!'
+        self.config = config
         env_config = config['env_config']
         assert isinstance(env_config, dict), 'env_config in config should be a dict!'
         # Load config into a member dict - this allows entries in the config to be accessed as if they were fields of env. any changes to these dict entries doesnt impact config (as expected)
@@ -145,10 +152,16 @@ class GameOfDronesEnv(Env):
 
 
     def __initPredPoszAndVels(self):
+        from src.shielding.mr_models.model_gd import solnExists
+
+        prey_st = self.prey.position.tolist() + self.prey.velocity.tolist()
         preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
-        while preds_collided or pred_landed_outside_ws or pred_landed_in_obs:
+        pred_fails_invariant = True
+        while (preds_collided or pred_landed_outside_ws or pred_landed_in_obs
+               or pred_fails_invariant):
             #reset all the flags at the start of each iteration in case a flag gets unset but another remains true in a given iteration
             preds_collided = True; pred_landed_outside_ws = True; pred_landed_in_obs = True
+            pred_fails_invariant = False
             positions = self.pred_posz_space.sample()  # produces for say a 2 pred 3d space a 6 element vector [-2, 8, -1, 4, -3, 10]
             for pred_num, predator in enumerate(self.predators):
                 start = pred_num * self.num_dims
@@ -160,6 +173,14 @@ class GameOfDronesEnv(Env):
                 predator.hit_geofence = False
                 predator.is_live = True
                 predator.shield_was_used_in_step = False
+                predator.sheild_corrected = False
+                current_state = predator.position.tolist() + predator.velocity.tolist()
+                solution = solnExists(
+                    self.config, current_state, prey_st, self.STEPS_BOUND)
+                if isinstance(solution, (list, tuple)):
+                    solution = any(solution[:self.STEPS_BOUND + 1])
+                if not solution:
+                    pred_fails_invariant = True
 
             # check it didnt place preds on top of each other or outside WS or inside obstacle
             collisions = self.__findAndKillCollidedPreds()
@@ -334,6 +355,8 @@ class GameOfDronesEnv(Env):
         shield_used = False
         if self.use_shield:
             shield_used = any(getattr(pred, 'shield_was_used_in_step', False) for pred in self.predators)
+        sheild_corrected = self.use_shield and any(
+            getattr(pred, 'sheild_corrected', False) for pred in self.predators)
 
         if done:
             if self.__aPredCaughtPrey():
@@ -371,9 +394,15 @@ class GameOfDronesEnv(Env):
                 reward = self.gamma * potential - self.prev_potential  # only potential increase gets +ve reward, to encourage getting closer to prey
                 self.prev_potential = potential
 
-        if self.use_shield and shield_used:
+        # if shield_used:
+        if sheild_corrected:
+            reward = -self.SHIELD_PENALTY
+
+        # if self.use_shield and shield_used:
+        if self.use_shield and (shield_used or sheild_corrected):
             for pred in self.predators:
                 pred.shield_was_used_in_step = False
+                pred.sheild_corrected = False
 
         return reward
     

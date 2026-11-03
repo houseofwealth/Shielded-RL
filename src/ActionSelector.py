@@ -9,7 +9,7 @@ from stable_baselines3.common.utils import obs_as_tensor
 # ---------------------------------------------------------------------------
 class ActionSelector:
     def __init__(self, config, policy, env):
-        self.env          = env.envs[0]   # NOTE: assumes VecEnv with exactly 1 env inside
+        self.env          = env.envs[0].unwrapped   # NOTE: assumes VecEnv with exactly 1 env inside, .unwrapped added to elinnate warnings about deprecated
         self.policy       = policy
         self.num_chances  = config['num_shield_chances']
         self.config       = config
